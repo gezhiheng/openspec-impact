@@ -1,0 +1,20 @@
+{
+  "name": "openspec-impact",
+  "version": "0.1.0",
+  "description": "Deterministic OpenSpec candidate-code-scope CLI",
+  "type": "module",
+  "bin": {
+    "osi": "./dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node --test dist/tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2"
+  }
+}
