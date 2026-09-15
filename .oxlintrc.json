@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint"],
+  "categories": {
+    "correctness": "off"
+  },
+  "rules": {
+    "curly": ["error", "all"]
+  },
+  "ignorePatterns": ["dist", "coverage", "tests/fixtures"]
+}

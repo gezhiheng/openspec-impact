@@ -2,19 +2,23 @@
   "name": "openspec-impact",
   "version": "0.1.0",
   "description": "Deterministic OpenSpec candidate-code-scope CLI",
-  "type": "module",
   "bin": {
     "osi": "./dist/src/cli.js"
   },
+  "type": "module",
   "scripts": {
     "build": "tsc",
+    "fmt": "oxfmt && oxlint --fix",
+    "fmt:check": "oxfmt --check && oxlint",
     "test": "tsc && node --test dist/tests/*.test.js"
-  },
-  "engines": {
-    "node": ">=18"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "oxfmt": "^0.68.0",
+    "oxlint": "^1.83.0",
     "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
