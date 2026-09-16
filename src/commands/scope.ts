@@ -15,12 +15,18 @@ import {
 import {
   confidenceFor,
   isTestPath,
-  limitLow,
+  limitCandidates,
   relatedSource,
   searchConcepts,
   sortCandidates,
 } from '../search/repository.js'
-import { harvestConcepts, publicConcepts } from '../search/terms.js'
+import {
+  harvestConcepts,
+  kebabWordsFrom,
+  publicConcepts,
+  citationConcepts,
+  toSearchConcepts,
+} from '../search/terms.js'
 
 export type ScopeOptions = {
   cwd: string
@@ -36,9 +42,11 @@ export function runScope(opts: ScopeOptions): ScopeDocument {
   }
   const located = resolveChange(projectRoot, opts.change)
   const documents = readChangeDocuments(located.changeDir)
-  const harvested = harvestConcepts(located.name, specDirNames(located.changeDir), documents)
+  const dirs = specDirNames(located.changeDir)
+  const harvested = harvestConcepts(located.name, dirs, documents)
   const search = opts.search !== false
-  const hits = search ? searchConcepts(projectRoot, harvested) : []
+  const searchSet = toSearchConcepts(harvested, kebabWordsFrom(located.name, dirs))
+  const hits = search ? searchConcepts(projectRoot, searchSet) : []
 
   const sources: Candidate[] = []
   const tests: TestEntry[] = []
@@ -62,7 +70,7 @@ export function runScope(opts: ScopeOptions): ScopeDocument {
     })
   }
 
-  const ranked = limitLow(sortCandidates(sources), opts.includeLow, 20)
+  const ranked = limitCandidates(sortCandidates(sources), opts.includeLow)
 
   for (const c of ranked) {
     const base = c.path.split('/').at(-1)
@@ -93,7 +101,7 @@ export function runScope(opts: ScopeOptions): ScopeDocument {
   return {
     version: 1,
     change: { name: located.name, path: located.path },
-    concepts: publicConcepts(harvested),
+    concepts: search ? citationConcepts(harvested) : publicConcepts(harvested),
     candidates: ranked,
     tests,
   }

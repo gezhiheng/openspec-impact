@@ -36,6 +36,12 @@ export const NEVER_SEARCH = new Set([
   'purpose',
   'why',
   'what',
+  'id',
+  'env',
+  'alter',
+  'explain',
+  'ifnull',
+  'count',
 ])
 
 export const PATH_ONLY = new Set([
@@ -55,7 +61,16 @@ export const PATH_ONLY = new Set([
   'dialog',
   'table',
   'button',
+  'sync',
+  'report',
+  'checkout',
+  'variable',
 ])
+
+export const SQL_NOISE = new Set(['ifnull', 'date_format', 'alter', 'explain', 'count(*)', 'count'])
+
+/** ponytail: cap stops large-spec harvest from becoming an O(files×terms) search. Raise if citation-only still misses seeds. */
+export const SEARCH_TERM_CAP = 80
 
 const TOKEN_RE = /[A-Za-z][A-Za-z0-9]*|[\u4e00-\u9fff]+/g
 
@@ -125,7 +140,7 @@ function phrasesFromTokens(tokens: string[], map: Map<string, Bucket>): void {
       }
     }
     for (const w of kept) {
-      if (isNever(w)) {
+      if (isNever(w) || SQL_NOISE.has(w.toLowerCase())) {
         continue
       }
       if (isPathOnly(w)) {
@@ -137,7 +152,7 @@ function phrasesFromTokens(tokens: string[], map: Map<string, Bucket>): void {
     kept.length = 0
   }
   for (const raw of tokens) {
-    if (isNever(raw)) {
+    if (isNever(raw) || SQL_NOISE.has(raw.toLowerCase()) || isCjkToken(raw)) {
       flush()
     } else {
       kept.push(raw)
@@ -158,6 +173,51 @@ function markdownSection(md: string, heading: string): string {
   return next < 0 ? rest : rest.slice(0, next)
 }
 
+function isCjkToken(word: string): boolean {
+  return /^[\u4e00-\u9fff]+$/.test(word)
+}
+
+function stripMarks(md: string): string {
+  return md.replace(/`[^`]*`/g, ' ').replace(/\*\*[^*]*\*\*/g, ' ')
+}
+
+function isNumericOrPunct(token: string): boolean {
+  return !/[A-Za-z\u4e00-\u9fff]/.test(token)
+}
+
+function isOpenspecPath(token: string): boolean {
+  const t = token.replaceAll('\\', '/')
+  return t === 'openspec' || t.startsWith('openspec/')
+}
+
+function citationRejected(token: string): boolean {
+  if (token.includes('=')) {
+    return true
+  }
+  if (SQL_NOISE.has(token.toLowerCase())) {
+    return true
+  }
+  if (isNumericOrPunct(token)) {
+    return true
+  }
+  if (isOpenspecPath(token)) {
+    return true
+  }
+  if (!/[A-Za-z]/.test(token)) {
+    return true
+  }
+  const stripped = token.replace(/^\.+/, '')
+  return isNever(token) || isNever(stripped)
+}
+
+function addCitation(map: Map<string, Bucket>, token: string): void {
+  const t = token.trim()
+  if (!t || citationRejected(t)) {
+    return
+  }
+  add(map, t, [t], 'strong')
+}
+
 function headingLines(md: string): string[] {
   const lines: string[] = []
   for (const line of md.split(/\r?\n/)) {
@@ -172,26 +232,31 @@ function headingLines(md: string): string[] {
 
 function harvestMarked(md: string, map: Map<string, Bucket>): void {
   for (const m of md.matchAll(/`([^`]+)`/g)) {
-    const token = m[1].trim()
-    if (!token) {
-      continue
-    }
-    add(map, token, [token], 'strong')
+    addCitation(map, m[1])
   }
   for (const m of md.matchAll(/\*\*([^*]+)\*\*/g)) {
-    const token = m[1].trim()
-    if (!token) {
-      continue
-    }
-    add(map, token, [token], 'strong')
+    addCitation(map, m[1])
   }
   for (const m of md.matchAll(/(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+/g)) {
-    add(map, m[0], [m[0]], 'strong')
+    addCitation(map, m[0])
   }
 }
 
+function addUnigram(map: Map<string, Bucket>, word: string): void {
+  if (isNever(word)) {
+    return
+  }
+  if (isPathOnly(word)) {
+    add(map, word.toLowerCase(), expandUnigram(word.toLowerCase()), 'path-only')
+    return
+  }
+  add(map, word.toLowerCase(), expandUnigram(word), 'domain')
+}
+
 function kebabPieces(name: string, map: Map<string, Bucket>): void {
-  phrasesFromTokens(name.split('-').filter(Boolean), map)
+  for (const piece of name.split('-').filter(Boolean)) {
+    addUnigram(map, piece)
+  }
 }
 
 export function harvestConcepts(
@@ -208,11 +273,11 @@ export function harvestConcepts(
   for (const doc of documents) {
     harvestMarked(doc.content, map)
     for (const heading of headingLines(doc.content)) {
-      phrasesFromTokens(tokenize(heading), map)
+      phrasesFromTokens(tokenize(stripMarks(heading)), map)
     }
     if (doc.relativePath === 'proposal.md' || doc.relativePath.endsWith('/proposal.md')) {
-      phrasesFromTokens(tokenize(markdownSection(doc.content, 'What Changes')), map)
-      phrasesFromTokens(tokenize(markdownSection(doc.content, 'Impact')), map)
+      phrasesFromTokens(tokenize(stripMarks(markdownSection(doc.content, 'What Changes'))), map)
+      phrasesFromTokens(tokenize(stripMarks(markdownSection(doc.content, 'Impact'))), map)
     }
   }
 
@@ -222,7 +287,53 @@ export function harvestConcepts(
 }
 
 export function publicConcepts(harvested: HarvestedConcept[]): Concept[] {
-  return harvested.map(({ text }) => ({ text }))
+  return harvested.filter((c) => !isCjkToken(c.text)).map(({ text }) => ({ text }))
+}
+
+export function citationConcepts(harvested: HarvestedConcept[]): Concept[] {
+  return harvested
+    .filter((c) => c.role === 'strong' && isSearchableCitation(c.text))
+    .map(({ text }) => ({ text }))
+}
+
+export function isSearchableCitation(text: string): boolean {
+  if (/^(GET|POST|PUT|PATCH|DELETE)\s+\//i.test(text)) {
+    return true
+  }
+  if (/\s/.test(text)) {
+    return false
+  }
+  return /[A-Za-z]/.test(text)
+}
+
+export function kebabWordsFrom(changeName: string, specDirs: string[]): string[] {
+  return [changeName, ...specDirs].flatMap((s) => s.split('-').filter(Boolean))
+}
+
+export function toSearchConcepts(
+  harvested: HarvestedConcept[],
+  kebabWords: string[],
+): HarvestedConcept[] {
+  const citations = harvested
+    .filter((c) => c.role === 'strong' && isSearchableCitation(c.text))
+    .sort((a, b) => b.text.length - a.text.length || a.text.localeCompare(b.text))
+    .slice(0, SEARCH_TERM_CAP)
+
+  const seen = new Set(citations.map((c) => c.text.toLowerCase()))
+  const pathish: HarvestedConcept[] = []
+  const kebab = new Set(kebabWords.map((w) => w.toLowerCase()).filter((w) => !isNever(w)))
+
+  for (const c of harvested) {
+    const key = c.text.toLowerCase()
+    if (seen.has(key) || c.text.includes(' ')) {
+      continue
+    }
+    if (kebab.has(key) && !isPathOnly(key)) {
+      pathish.push({ text: c.text, search_terms: c.search_terms, role: 'path-only' })
+      seen.add(key)
+    }
+  }
+  return [...citations, ...pathish]
 }
 
 export function isPathOnlyTerm(term: string): boolean {

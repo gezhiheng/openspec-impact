@@ -1,4 +1,13 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import type {
@@ -18,7 +27,23 @@ export const SEARCH_EXCLUDES = [
   'build',
   'coverage',
   'vendor',
+  '.ai',
+  '.agents',
+  'agent-skills',
+  'agent-instructions',
+  'knowledge',
+  'requirements',
+  'docs',
+  'target',
+  '.idea',
+  '.vscode',
 ]
+
+/** ponytail: skip HTML/minified blobs that dominate workspace search time; raise if templates must be candidates. */
+export const MAX_FILE_BYTES = 512 * 1024
+export const CANDIDATE_CAP = 120
+/** ponytail: keeps one nested repo from filling the global cap; raise if a change is truly single-repo. */
+export const PER_REPO_CAP = 15
 
 function posixRel(from: string, to: string): string {
   return relative(from, to).split(sep).join('/')
@@ -45,8 +70,55 @@ function walkFiles(root: string, dir: string, out: string[]): void {
   }
 }
 
+function posixFromRg(line: string): string {
+  const p = line.split(sep).join('/')
+  return p.startsWith('./') ? p.slice(2) : p
+}
+
+function skipExt(rel: string): boolean {
+  const lower = rel.toLowerCase()
+  return (
+    lower.endsWith('.html')
+    || lower.endsWith('.htm')
+    || lower.endsWith('.min.js')
+    || lower.endsWith('.min.css')
+    || lower.endsWith('.class')
+    || lower.endsWith('.jar')
+  )
+}
+
+function rgGlobs(): string[] {
+  const args = ['--hidden', '--no-ignore-vcs', '--glob', '!.git/**']
+  for (const dir of SEARCH_EXCLUDES) {
+    if (dir === '.git') {
+      continue
+    }
+    args.push('--glob', `!${dir}/**`)
+  }
+  args.push(
+    '--glob',
+    '!*.html',
+    '--glob',
+    '!*.htm',
+    '--glob',
+    '!*.min.js',
+    '--glob',
+    '!*.min.css',
+    '--glob',
+    '!*.class',
+    '--glob',
+    '!*.jar',
+    '--max-filesize',
+    '512K',
+  )
+  return args
+}
+
 function rgAvailable(): boolean {
-  const r = spawnSync('rg', ['--version'], { encoding: 'utf8' })
+  const r = spawnSync('rg', ['--version'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
   return r.status === 0
 }
 
@@ -54,49 +126,39 @@ function listWithRg(root: string): string[] | undefined {
   if (!rgAvailable()) {
     return undefined
   }
-  const args = ['--files', '--hidden', '--glob', '!.git/**']
-  for (const dir of SEARCH_EXCLUDES) {
-    if (dir === '.git') {
-      continue
-    }
-    args.push('--glob', `!${dir}/**`)
-  }
-  const r = spawnSync('rg', args, { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+  const r = spawnSync('rg', ['--files', ...rgGlobs(), '.'], {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
   if (r.status !== 0 && r.status !== 1) {
     return undefined
   }
   return r.stdout
     .split(/\r?\n/)
     .filter(Boolean)
-    .filter((p) => !excluded(p.split(sep).join('/')))
-}
-
-function listWithGit(root: string): string[] | undefined {
-  if (!existsSync(join(root, '.git'))) {
-    return undefined
-  }
-  const r = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 32 * 1024 * 1024,
-  })
-  if (r.status !== 0) {
-    return undefined
-  }
-  return r.stdout
-    .split('\0')
-    .filter(Boolean)
-    .filter((p) => !excluded(p.split(sep).join('/')))
+    .map(posixFromRg)
+    .filter((p) => !excluded(p) && !skipExt(p))
 }
 
 export function listSourceFiles(root: string): string[] {
-  return listWithRg(root) ?? listWithGit(root) ?? collectWalk(root)
+  return listWithRg(root) ?? collectWalk(root)
 }
 
 function collectWalk(root: string): string[] {
   const out: string[] = []
   walkFiles(root, root, out)
-  return out.filter((p) => !excluded(p))
+  return out.filter((p) => {
+    if (excluded(p) || skipExt(p)) {
+      return false
+    }
+    try {
+      return statSync(join(root, p.split('/').join(sep))).size <= MAX_FILE_BYTES
+    } catch {
+      return false
+    }
+  })
 }
 
 function escapeRegExp(s: string): string {
@@ -128,32 +190,52 @@ export type FileHit = {
   roles: TermRole[]
 }
 
-function matchTypes(
-  relPath: string,
-  content: string,
-  term: string,
-  pathOnly: boolean,
-): ReasonType[] {
-  const types: ReasonType[] = []
-  if (pathMatches(relPath, term)) {
-    types.push('path_match')
-  }
-  if (pathOnly) {
-    return types
-  }
-  if (symbolMatches(content, term)) {
-    types.push('symbol_match')
-  } else if (contentMatches(content, term)) {
-    types.push('content_match')
-  }
-  return types
-}
-
 export function searchConcepts(root: string, concepts: HarvestedConcept[]): FileHit[] {
   const files = listSourceFiles(root)
   const hits = new Map<string, FileHit>()
-  const contents = new Map<string, string>()
 
+  const add = (posix: string, type: ReasonType, term: string, role: TermRole): void => {
+    let hit = hits.get(posix)
+    if (!hit) {
+      hit = { path: posix, reasons: [], roles: [] }
+      hits.set(posix, hit)
+    }
+    if (!hit.reasons.some((r) => r.type === type && r.term === term)) {
+      hit.reasons.push({ type, term })
+      hit.roles.push(role)
+    }
+  }
+
+  const contentTerms: string[] = []
+  const termRole = new Map<string, TermRole>()
+  for (const concept of concepts) {
+    for (const term of concept.search_terms) {
+      if (!term) {
+        continue
+      }
+      const role = conceptRoleForTerm(concept, term)
+      if (!termRole.has(term) || role === 'strong') {
+        termRole.set(term, role)
+      }
+      const pathOnly = role === 'path-only' || PATH_ONLY.has(term.toLowerCase())
+      if (!pathOnly && !contentTerms.includes(term)) {
+        contentTerms.push(term)
+      }
+    }
+  }
+
+  for (const rel of files) {
+    const posix = rel.split(sep).join('/')
+    for (const [term, role] of termRole) {
+      if (pathMatches(posix, term)) {
+        add(posix, 'path_match', term, role)
+      }
+    }
+  }
+
+  const contentFiles = rgContentFiles(root, contentTerms)
+  const toRead = contentFiles ?? (contentTerms.length > 0 ? files : [])
+  const contents = new Map<string, string>()
   const read = (rel: string): string => {
     const cached = contents.get(rel)
     if (cached !== undefined) {
@@ -162,7 +244,7 @@ export function searchConcepts(root: string, concepts: HarvestedConcept[]): File
     const abs = join(root, rel.split('/').join(sep))
     let text = ''
     try {
-      if (existsSync(abs) && statSync(abs).isFile()) {
+      if (existsSync(abs) && statSync(abs).isFile() && statSync(abs).size <= MAX_FILE_BYTES) {
         text = readFileSync(abs, 'utf8')
       }
     } catch {
@@ -172,32 +254,53 @@ export function searchConcepts(root: string, concepts: HarvestedConcept[]): File
     return text
   }
 
-  for (const rel of files) {
+  for (const rel of toRead) {
     const posix = rel.split(sep).join('/')
-    for (const concept of concepts) {
-      for (const term of concept.search_terms) {
-        const role = conceptRoleForTerm(concept, term)
-        const pathOnly = role === 'path-only' || PATH_ONLY.has(term.toLowerCase())
-        const content = pathOnly ? '' : read(posix)
-        const types = matchTypes(posix, content, term, pathOnly)
-        if (types.length === 0) {
-          continue
-        }
-        let hit = hits.get(posix)
-        if (!hit) {
-          hit = { path: posix, reasons: [], roles: [] }
-          hits.set(posix, hit)
-        }
-        for (const type of types) {
-          if (!hit.reasons.some((r) => r.type === type && r.term === term)) {
-            hit.reasons.push({ type, term })
-            hit.roles.push(role)
-          }
-        }
+    const content = read(posix)
+    if (!content) {
+      continue
+    }
+    for (const term of contentTerms) {
+      const role = termRole.get(term) ?? 'domain'
+      if (symbolMatches(content, term)) {
+        add(posix, 'symbol_match', term, role)
+      } else if (contentMatches(content, term)) {
+        add(posix, 'content_match', term, role)
       }
     }
   }
+
   return [...hits.values()]
+}
+
+function rgContentFiles(root: string, terms: string[]): string[] | undefined {
+  if (terms.length === 0) {
+    return []
+  }
+  if (!rgAvailable()) {
+    return undefined
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'osi-rg-'))
+  const file = join(dir, 'terms.txt')
+  writeFileSync(file, `${terms.join('\n')}\n`)
+  try {
+    const r = spawnSync('rg', ['-F', '-l', '-f', file, ...rgGlobs(), '.'], {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    if (r.status !== 0 && r.status !== 1) {
+      return undefined
+    }
+    return r.stdout
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map(posixFromRg)
+      .filter((p) => !excluded(p) && !skipExt(p))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 const CONF_RANK: Record<Confidence, number> = { high: 0, medium: 1, low: 2 }
@@ -224,10 +327,99 @@ export function confidenceFor(reasons: Reason[], roles: TermRole[]): Confidence 
   return best
 }
 
-export function sortCandidates<T extends { path: string; confidence: Confidence }>(xs: T[]): T[] {
-  return [...xs].sort(
-    (a, b) => CONF_RANK[a.confidence] - CONF_RANK[b.confidence] || a.path.localeCompare(b.path),
-  )
+export function sortCandidates<
+  T extends { path: string; confidence: Confidence; reasons?: Reason[] },
+>(xs: T[]): T[] {
+  return [...xs].sort((a, b) => {
+    const seed = seedRank(a) - seedRank(b)
+    if (seed !== 0) {
+      return seed
+    }
+    const src = srcRank(a.path) - srcRank(b.path)
+    if (src !== 0) {
+      return src
+    }
+    return a.path.localeCompare(b.path)
+  })
+}
+
+function stemOf(name: string): string {
+  const i = name.lastIndexOf('.')
+  return i > 0 ? name.slice(0, i) : name
+}
+
+function isNamedTerm(term: string, path: string): boolean {
+  const base = path.split('/').at(-1) ?? ''
+  const stem = stemOf(base)
+  const tbase = term.split('/').at(-1) ?? term
+  const tstem = stemOf(tbase)
+  if (base === tbase || stem === tstem || stem === term) {
+    return true
+  }
+  return term.includes('/') && path.endsWith(term)
+}
+
+function isCodeIdentifier(term: string): boolean {
+  if (term.includes('/') || /\.(vue|tsx|ts|jsx|js|java)$/i.test(term)) {
+    return true
+  }
+  if (term.includes('_') && term === term.toLowerCase()) {
+    return false
+  }
+  return /[A-Z]/.test(term)
+}
+
+function seedRank(c: { path: string; confidence: Confidence; reasons?: Reason[] }): number {
+  const reasons = c.reasons ?? []
+  if (
+    reasons.some(
+      (r) => (r.type === 'path_match' || r.type === 'symbol_match') && isNamedTerm(r.term, c.path),
+    )
+  ) {
+    return 0
+  }
+  if (reasons.some((r) => r.type === 'symbol_match' && isCodeIdentifier(r.term))) {
+    return 1
+  }
+  if (c.confidence === 'high') {
+    return 2
+  }
+  if (c.confidence === 'medium') {
+    return 3
+  }
+  return 4
+}
+
+function repoKey(path: string): string {
+  return path.split('/')[0] ?? path
+}
+
+export function limitCandidates<T extends { path: string; confidence: Confidence }>(
+  xs: T[],
+  includeLow: boolean,
+  restCap = CANDIDATE_CAP,
+  lowCap = 20,
+  perRepo = PER_REPO_CAP,
+): T[] {
+  const core: T[] = []
+  const counts = new Map<string, number>()
+  for (const x of xs) {
+    if (x.confidence === 'low') {
+      continue
+    }
+    const repo = repoKey(x.path)
+    const n = counts.get(repo) ?? 0
+    if (n >= perRepo || core.length >= restCap) {
+      continue
+    }
+    counts.set(repo, n + 1)
+    core.push(x)
+  }
+  return [...core, ...limitLow(xs, includeLow, lowCap).filter((x) => x.confidence === 'low')]
+}
+
+function srcRank(path: string): number {
+  return path.includes('/src/') || path.startsWith('src/') ? 0 : 1
 }
 
 export function limitLow<T extends { confidence: Confidence }>(

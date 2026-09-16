@@ -5,10 +5,10 @@ import { LocateError, UsageError } from './models/evidence.js'
 import { runScope } from './commands/scope.js'
 import { toYaml } from './output/yaml.js'
 
-export const USAGE = `Usage: osi scope [--search] [--include-low] <change-id|path>
+export const USAGE = `Usage: osi scope [--no-search] [--include-low] <change-id|path>
 
-Parse an OpenSpec change into concepts and search terms.
-Prints YAML to stdout. Pass --search to also scan the repository for candidate files.
+Parse an OpenSpec change into concepts and search terms, then scan the repository
+for candidate files. Prints YAML to stdout. Pass --no-search to skip the scan.
 `
 
 export type ParsedArgs =
@@ -18,13 +18,13 @@ export type ParsedArgs =
 export function parseArgv(argv: string[]): ParsedArgs {
   const rest = [...argv]
   let includeLow = false
-  let search = false
+  let search = true
   const positional: string[] = []
   for (const arg of rest) {
     if (arg === '--include-low') {
       includeLow = true
-    } else if (arg === '--search') {
-      search = true
+    } else if (arg === '--no-search') {
+      search = false
     } else if (arg.startsWith('-')) {
       return { ok: false, message: `Unknown flag: ${arg}\n${USAGE}` }
     } else {

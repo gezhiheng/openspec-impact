@@ -9,7 +9,7 @@ import { parseArgv } from '../src/cli.js'
 import { runScope } from '../src/commands/scope.js'
 import { LocateError } from '../src/models/evidence.js'
 import { toYaml } from '../src/output/yaml.js'
-import { limitLow } from '../src/search/repository.js'
+import { limitCandidates, limitLow, sortCandidates } from '../src/search/repository.js'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const fixture = join(repoRoot, 'tests/fixtures/mini-repo')
@@ -28,14 +28,16 @@ describe('argv', () => {
     assert.equal(ok.ok, true)
     if (ok.ok) {
       assert.equal(ok.includeLow, true)
-      assert.equal(ok.search, false)
+      assert.equal(ok.search, true)
       assert.equal(ok.change, 'add-renewal-status')
     }
-    const withSearch = parseArgv(['scope', '--search', 'add-renewal-status'])
-    assert.equal(withSearch.ok, true)
-    if (withSearch.ok) {
-      assert.equal(withSearch.search, true)
+    const noSearch = parseArgv(['scope', '--no-search', 'add-renewal-status'])
+    assert.equal(noSearch.ok, true)
+    if (noSearch.ok) {
+      assert.equal(noSearch.search, false)
     }
+    const withSearch = parseArgv(['scope', '--search', 'add-renewal-status'])
+    assert.equal(withSearch.ok, false)
   })
 })
 
@@ -88,9 +90,7 @@ describe('osi scope against fixture', () => {
       def.candidates.some((c) => c.confidence === 'low'),
       false,
     )
-    assert.ok(
-      all.candidates.some((c) => c.path === 'src/extra/notes.txt' && c.confidence === 'low'),
-    )
+    assert.ok(!all.candidates.some((c) => c.path === 'src/extra/notes.txt'))
   })
 
   it('caps low at 20', () => {
@@ -126,6 +126,46 @@ describe('osi scope against fixture', () => {
     )
   })
 
+  it('default YAML concepts are citations only', () => {
+    const doc = runScope({ cwd: fixture, change: 'add-renewal-status', includeLow: false })
+    assert.ok(doc.concepts.some((c) => c.text === 'TenantList'))
+    assert.equal(
+      doc.concepts.some((c) => c.text.toLowerCase() === 'renewal status'),
+      false,
+    )
+  })
+
+  it('sorts named files ahead of table-name hits and caps per repo', () => {
+    const sorted = sortCandidates([
+      {
+        path: 'qft-all/FooMapper.xml',
+        confidence: 'high' as const,
+        reasons: [{ type: 'symbol_match' as const, term: 'qft_tenants_check_out' }],
+      },
+      {
+        path: 'qft-app/src/CheckoutStatistics.vue',
+        confidence: 'high' as const,
+        reasons: [{ type: 'path_match' as const, term: 'CheckoutStatistics.vue' }],
+      },
+    ])
+    assert.equal(sorted[0].path, 'qft-app/src/CheckoutStatistics.vue')
+    const many = [
+      ...Array.from({ length: 20 }, (_, i) => ({
+        path: `qft-all/src/f${String(i).padStart(2, '0')}.java`,
+        confidence: 'high' as const,
+        reasons: [{ type: 'symbol_match' as const, term: 'FooBar' }],
+      })),
+      {
+        path: 'qft-app/src/Bar.vue',
+        confidence: 'high' as const,
+        reasons: [{ type: 'path_match' as const, term: 'Bar.vue' }],
+      },
+    ]
+    const limited = limitCandidates(sortCandidates(many), false)
+    assert.equal(limited.filter((c) => c.path.startsWith('qft-all/')).length, 15)
+    assert.ok(limited.some((c) => c.path.startsWith('qft-app/')))
+  })
+
   it('prints version 1 YAML with the required keys', () => {
     const doc = runScope({ cwd: fixture, change: 'add-renewal-status', includeLow: false })
     const yaml = toYaml(doc)
@@ -156,19 +196,21 @@ describe('osi scope against fixture', () => {
     assert.match(r.stdout, /^concepts:$/m)
   })
 
-  it('osi scope without --search prints concepts only', () => {
-    const r = spawnSync(process.execPath, [cli, 'scope', 'add-renewal-status'], {
+  it('osi scope --no-search prints concepts only', () => {
+    const r = spawnSync(process.execPath, [cli, 'scope', '--no-search', 'add-renewal-status'], {
       cwd: fixture,
       encoding: 'utf8',
     })
     assert.equal(r.status, 0, r.stderr)
     assert.match(r.stdout, /^concepts:$/m)
     assert.match(r.stdout, /TenantList/)
+    assert.match(r.stdout, /renewal status/)
     assert.match(r.stdout, /^candidates: \[\]$/m)
+    assert.match(r.stdout, /^tests: \[\]$/m)
   })
 
   it('osi scope CLI from the fixture directory', () => {
-    const r = spawnSync(process.execPath, [cli, 'scope', '--search', 'add-renewal-status'], {
+    const r = spawnSync(process.execPath, [cli, 'scope', 'add-renewal-status'], {
       cwd: fixture,
       encoding: 'utf8',
     })
@@ -181,6 +223,16 @@ describe('osi scope against fixture', () => {
     assert.match(r.stdout, /related_to: "src\/pages\/tenant\/TenantList.tsx"/)
     assert.equal(r.stdout.includes('openspec/changes'), true) // change.path
     assert.equal(/path: "openspec\/changes\/add-renewal-status\/proposal.md"/.test(r.stdout), false)
+  })
+
+  it('osi scope --search is an unknown flag', () => {
+    const r = spawnSync(process.execPath, [cli, 'scope', '--search', 'add-renewal-status'], {
+      cwd: fixture,
+      encoding: 'utf8',
+    })
+    assert.notEqual(r.status, 0)
+    assert.match(r.stderr, /Unknown flag/)
+    assert.equal(r.stdout.includes('version:'), false)
   })
 
   it('missing change prints stderr and no YAML', () => {
