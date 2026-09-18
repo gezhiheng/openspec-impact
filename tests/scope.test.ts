@@ -20,13 +20,19 @@ function byPath(doc: ReturnType<typeof runScope>, path: string) {
 }
 
 describe('argv', () => {
-  it('requires scope and a change', () => {
+  it('treats a bare change id as the pipeline and keeps layer commands', () => {
     assert.equal(parseArgv([]).ok, false)
-    assert.equal(parseArgv(['nope']).ok, false)
+    const pipeline = parseArgv(['nope'])
+    assert.equal(pipeline.ok, true)
+    if (pipeline.ok) {
+      assert.equal(pipeline.command, 'evidence')
+      assert.equal(pipeline.change, 'nope')
+    }
     assert.equal(parseArgv(['scope']).ok, false)
     const ok = parseArgv(['scope', '--include-low', 'add-renewal-status'])
     assert.equal(ok.ok, true)
     if (ok.ok) {
+      assert.equal(ok.command, 'scope')
       assert.equal(ok.includeLow, true)
       assert.equal(ok.search, true)
       assert.equal(ok.change, 'add-renewal-status')
@@ -35,6 +41,13 @@ describe('argv', () => {
     assert.equal(noSearch.ok, true)
     if (noSearch.ok) {
       assert.equal(noSearch.search, false)
+    }
+    const flagThenChange = parseArgv(['--no-search', 'add-renewal-status'])
+    assert.equal(flagThenChange.ok, true)
+    if (flagThenChange.ok) {
+      assert.equal(flagThenChange.command, 'evidence')
+      assert.equal(flagThenChange.search, false)
+      assert.equal(flagThenChange.change, 'add-renewal-status')
     }
     const withSearch = parseArgv(['scope', '--search', 'add-renewal-status'])
     assert.equal(withSearch.ok, false)
@@ -74,13 +87,13 @@ describe('osi scope against fixture', () => {
     )
   })
 
-  it('ranks TenantList high and TenantFilter medium', () => {
+  it('ranks TenantList high and does not bag-match TenantFilter', () => {
     const doc = runScope({ cwd: fixture, change: 'add-renewal-status', includeLow: false })
     const list = byPath(doc, 'src/pages/tenant/TenantList.tsx')
     const filter = byPath(doc, 'src/pages/tenant/TenantFilter.tsx')
     assert.equal(list?.confidence, 'high')
     assert.ok(list?.reasons.some((r) => r.type === 'symbol_match' && r.term === 'TenantList'))
-    assert.equal(filter?.confidence, 'medium')
+    assert.equal(filter, undefined)
   })
 
   it('omits low by default and includes it with --include-low', () => {
@@ -196,7 +209,7 @@ describe('osi scope against fixture', () => {
     assert.match(r.stdout, /^concepts:$/m)
   })
 
-  it('osi scope --no-search prints concepts only', () => {
+  it('osi scope --no-search prints typed concepts only', () => {
     const r = spawnSync(process.execPath, [cli, 'scope', '--no-search', 'add-renewal-status'], {
       cwd: fixture,
       encoding: 'utf8',
@@ -204,7 +217,7 @@ describe('osi scope against fixture', () => {
     assert.equal(r.status, 0, r.stderr)
     assert.match(r.stdout, /^concepts:$/m)
     assert.match(r.stdout, /TenantList/)
-    assert.match(r.stdout, /renewal status/)
+    assert.equal(r.stdout.includes('renewal status'), false)
     assert.match(r.stdout, /^candidates: \[\]$/m)
     assert.match(r.stdout, /^tests: \[\]$/m)
   })
@@ -217,8 +230,7 @@ describe('osi scope against fixture', () => {
     assert.equal(r.status, 0, r.stderr)
     assert.match(r.stdout, /path: "src\/pages\/tenant\/TenantList.tsx"/)
     assert.match(r.stdout, /confidence: high/)
-    assert.match(r.stdout, /path: "src\/pages\/tenant\/TenantFilter.tsx"/)
-    assert.match(r.stdout, /confidence: medium/)
+    assert.equal(/path: "src\/pages\/tenant\/TenantFilter.tsx"/.test(r.stdout), false)
     assert.match(r.stdout, /path: "src\/pages\/tenant\/TenantList.test.tsx"/)
     assert.match(r.stdout, /related_to: "src\/pages\/tenant\/TenantList.tsx"/)
     assert.equal(r.stdout.includes('openspec/changes'), true) // change.path

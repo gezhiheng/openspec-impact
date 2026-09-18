@@ -2,22 +2,25 @@
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { LocateError, UsageError } from './models/evidence.js'
+import { runEvidence } from './commands/evidence.js'
 import { runHistory } from './commands/history.js'
 import { runScope } from './commands/scope.js'
 import { toHistoryYaml, toYaml } from './output/yaml.js'
 
-export const USAGE = `Usage: osi scope [--no-search] [--include-low] <change-id|path>
+export const USAGE = `Usage: osi [--no-search] [--include-low] <change-id|path>
+       osi scope [--no-search] [--include-low] <change-id|path>
        osi history <change-id|path>
 
-Parse an OpenSpec change into concepts and search terms, then scan the repository
-for candidate files. Prints YAML to stdout. Pass --no-search to skip the scan.
-osi history prints named seeds and same-repo co-change neighbors.
+Default: print seeds + history YAML for a live OpenSpec change.
+scope and history are reserved layer commands.
 `
+
+const LAYERS = new Set(['scope', 'history'])
 
 export type ParsedArgs =
   | {
       ok: true
-      command: 'scope' | 'history'
+      command: 'scope' | 'history' | 'evidence'
       includeLow: boolean
       search: boolean
       change: string
@@ -40,18 +43,27 @@ export function parseArgv(argv: string[]): ParsedArgs {
       positional.push(arg)
     }
   }
-  const command = positional[0]
-  if (!command) {
+  const first = positional[0]
+  if (!first) {
     return { ok: false, message: USAGE }
   }
-  if (command !== 'scope' && command !== 'history') {
-    return { ok: false, message: `Unknown command: ${command}\n${USAGE}` }
+  if (LAYERS.has(first)) {
+    const change = positional[1]
+    if (!change || positional.length > 2) {
+      return { ok: false, message: USAGE }
+    }
+    return {
+      ok: true,
+      command: first as 'scope' | 'history',
+      includeLow,
+      search,
+      change,
+    }
   }
-  const change = positional[1]
-  if (!change || positional.length > 2) {
+  if (positional.length !== 1) {
     return { ok: false, message: USAGE }
   }
-  return { ok: true, command, includeLow, search, change }
+  return { ok: true, command: 'evidence', includeLow, search, change: first }
 }
 
 export function main(argv = process.argv.slice(2), cwd = process.cwd()): number {
@@ -65,13 +77,26 @@ export function main(argv = process.argv.slice(2), cwd = process.cwd()): number 
       process.stdout.write(toHistoryYaml(runHistory({ cwd, change: parsed.change })))
       return 0
     }
-    const doc = runScope({
-      cwd,
-      change: parsed.change,
-      includeLow: parsed.includeLow,
-      search: parsed.search,
-    })
-    process.stdout.write(toYaml(doc))
+    if (parsed.command === 'scope') {
+      const doc = runScope({
+        cwd,
+        change: parsed.change,
+        includeLow: parsed.includeLow,
+        search: parsed.search,
+      })
+      process.stdout.write(toYaml(doc))
+      return 0
+    }
+    process.stdout.write(
+      toHistoryYaml(
+        runEvidence({
+          cwd,
+          change: parsed.change,
+          includeLow: parsed.includeLow,
+          search: parsed.search,
+        }),
+      ),
+    )
     return 0
   } catch (err) {
     if (err instanceof LocateError || err instanceof UsageError) {
