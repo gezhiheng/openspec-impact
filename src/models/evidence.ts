@@ -14,6 +14,7 @@ export type Concept = {
 export type HarvestedConcept = Concept & {
   search_terms: string[]
   role: TermRole
+  kind?: 'path' | 'symbol' | 'api' | 'perm'
 }
 
 export type Candidate = {
@@ -33,6 +34,20 @@ export type ScopeDocument = {
   concepts: Concept[]
   candidates: Candidate[]
   tests: TestEntry[]
+}
+
+export type HistoryEntry = {
+  path: string
+  via: string
+  commits: number
+  reason: 'co_change'
+}
+
+export type HistoryDocument = {
+  version: 1
+  change: { name: string; path: string }
+  seeds: string[]
+  history: HistoryEntry[]
 }
 
 export class LocateError extends Error {

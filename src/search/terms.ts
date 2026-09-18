@@ -44,60 +44,23 @@ export const NEVER_SEARCH = new Set([
   'count',
 ])
 
-export const PATH_ONLY = new Set([
-  'filter',
-  'export',
-  'search',
-  'create',
-  'update',
-  'renew',
-  'list',
-  'detail',
-  'page',
-  'status',
-  'form',
-  'view',
-  'modal',
-  'dialog',
-  'table',
-  'button',
-  'sync',
-  'report',
-  'checkout',
-  'variable',
-])
-
 export const SQL_NOISE = new Set(['ifnull', 'date_format', 'alter', 'explain', 'count(*)', 'count'])
 
 /** ponytail: cap stops large-spec harvest from becoming an O(files×terms) search. Raise if citation-only still misses seeds. */
 export const SEARCH_TERM_CAP = 80
 
-const TOKEN_RE = /[A-Za-z][A-Za-z0-9]*|[\u4e00-\u9fff]+/g
+export type CitationKind = 'path' | 'symbol' | 'api' | 'perm'
 
-export function tokenize(text: string): string[] {
-  return text.match(TOKEN_RE) ?? []
-}
+const HTTP_API_RE = /^(GET|POST|PUT|PATCH|DELETE)\s+\//i
+const FILE_EXT_RE = /\.(vue|tsx|ts|jsx|js|java|xml|rs|go)$/i
+const FOO_API_RE = /^[A-Z][A-Za-z0-9]*Api\.[A-Za-z][A-Za-z0-9]*$/
+const PERM_RE = /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/
+const REPO_BRACKET_RE = /\[([a-z][a-z0-9-]*)\]/g
+const PATH_IN_PROSE_RE = /(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+/g
+const OOS_HEADING = /^(out of scope|不在范围|明确不修|本期不修)$/i
+const OOS_PHRASE = /out of scope|不在范围|明确不修|本期不修/i
 
-function cap(word: string): string {
-  return word.slice(0, 1).toUpperCase() + word.slice(1)
-}
-
-export function camelCase(words: string[]): string {
-  return words.map((w, i) => (i === 0 ? w.toLowerCase() : cap(w.toLowerCase()))).join('')
-}
-
-export function pascalCase(words: string[]): string {
-  return words.map((w) => cap(w.toLowerCase())).join('')
-}
-
-export function expandPhrase(words: string[]): string[] {
-  const lower = words.map((w) => w.toLowerCase())
-  return unique([camelCase(lower), pascalCase(lower), lower.join('_'), lower.join('-')])
-}
-
-export function expandUnigram(word: string): string[] {
-  return unique([word, cap(word)])
-}
+type Bucket = { text: string; terms: string[]; role: TermRole; kind: CitationKind }
 
 function unique(xs: string[]): string[] {
   return [...new Set(xs.filter(Boolean))]
@@ -107,87 +70,13 @@ function isNever(word: string): boolean {
   return NEVER_SEARCH.has(word.toLowerCase())
 }
 
-function isPathOnly(word: string): boolean {
-  return PATH_ONLY.has(word.toLowerCase())
-}
-
-type Bucket = { text: string; terms: string[]; role: TermRole }
-
-function add(map: Map<string, Bucket>, text: string, terms: string[], role: TermRole): void {
-  const key = text.toLowerCase()
-  const existing = map.get(key)
-  if (!existing) {
-    map.set(key, { text, terms: unique(terms), role })
-    return
-  }
-  existing.terms = unique([...existing.terms, ...terms])
-  if (role === 'strong') {
-    existing.role = 'strong'
-  } else if (role === 'domain' && existing.role === 'path-only') {
-    existing.role = 'domain'
-  }
-}
-
-function phrasesFromTokens(tokens: string[], map: Map<string, Bucket>): void {
-  const kept: string[] = []
-  const flush = (): void => {
-    if (kept.length >= 2) {
-      for (let n = Math.min(3, kept.length); n >= 2; n--) {
-        for (let i = 0; i + n <= kept.length; i++) {
-          const slice = kept.slice(i, i + n)
-          add(map, slice.join(' '), expandPhrase(slice), 'strong')
-        }
-      }
-    }
-    for (const w of kept) {
-      if (isNever(w) || SQL_NOISE.has(w.toLowerCase())) {
-        continue
-      }
-      if (isPathOnly(w)) {
-        add(map, w.toLowerCase(), expandUnigram(w.toLowerCase()), 'path-only')
-      } else {
-        add(map, w.toLowerCase(), expandUnigram(w), 'domain')
-      }
-    }
-    kept.length = 0
-  }
-  for (const raw of tokens) {
-    if (isNever(raw) || SQL_NOISE.has(raw.toLowerCase()) || isCjkToken(raw)) {
-      flush()
-    } else {
-      kept.push(raw)
-    }
-  }
-  flush()
-}
-
-function markdownSection(md: string, heading: string): string {
-  const re = new RegExp(`^##\\s+${heading}\\s*$`, 'im')
-  const match = re.exec(md)
-  if (!match || match.index === undefined) {
-    return ''
-  }
-  const start = match.index + match[0].length
-  const rest = md.slice(start)
-  const next = rest.search(/^##\s+/m)
-  return next < 0 ? rest : rest.slice(0, next)
-}
-
-function isCjkToken(word: string): boolean {
-  return /^[\u4e00-\u9fff]+$/.test(word)
-}
-
-function stripMarks(md: string): string {
-  return md.replace(/`[^`]*`/g, ' ').replace(/\*\*[^*]*\*\*/g, ' ')
+function isOpenspecPath(token: string): boolean {
+  const t = token.replaceAll('\\', '/')
+  return t === 'openspec' || t.startsWith('openspec/')
 }
 
 function isNumericOrPunct(token: string): boolean {
   return !/[A-Za-z\u4e00-\u9fff]/.test(token)
-}
-
-function isOpenspecPath(token: string): boolean {
-  const t = token.replaceAll('\\', '/')
-  return t === 'openspec' || t.startsWith('openspec/')
 }
 
 function citationRejected(token: string): boolean {
@@ -210,94 +99,173 @@ function citationRejected(token: string): boolean {
   return isNever(token) || isNever(stripped)
 }
 
-function addCitation(map: Map<string, Bucket>, token: string): void {
-  const t = token.trim()
-  if (!t || citationRejected(t)) {
-    return
-  }
-  add(map, t, [t], 'strong')
+export function isFileCitation(text: string): boolean {
+  return Boolean(text) && !/[\s/]/.test(text) && FILE_EXT_RE.test(text)
 }
 
-function headingLines(md: string): string[] {
-  const lines: string[] = []
-  for (const line of md.split(/\r?\n/)) {
-    const m = /^(#{1,6})\s+(.*)$/.exec(line)
-    if (!m) {
+export function isTypeCitation(text: string): boolean {
+  if (!text || /[\s/]/.test(text) || isFileCitation(text)) {
+    return false
+  }
+  if (SQL_NOISE.has(text.toLowerCase()) || NEVER_SEARCH.has(text.toLowerCase())) {
+    return false
+  }
+  const m = /^([A-Z][A-Za-z0-9]*)(?:\.([A-Za-z][A-Za-z0-9]*))?$/.exec(text)
+  return Boolean(m?.[1] && /[a-z]/.test(m[1]))
+}
+
+export function typeCitationHead(text: string): string | undefined {
+  if (!isTypeCitation(text)) {
+    return undefined
+  }
+  const i = text.indexOf('.')
+  return i > 0 ? text.slice(0, i) : text
+}
+
+function isPathCitation(text: string): boolean {
+  if (!text || /\s/.test(text)) {
+    return false
+  }
+  const t = text.replaceAll('\\', '/')
+  if (isOpenspecPath(t)) {
+    return false
+  }
+  if (FILE_EXT_RE.test(t)) {
+    return true
+  }
+  return t.includes('/') && /[A-Za-z]/.test(t)
+}
+
+export function classifyCitation(text: string): CitationKind | undefined {
+  const t = text.trim()
+  if (!t || citationRejected(t)) {
+    return undefined
+  }
+  if (HTTP_API_RE.test(t) || FOO_API_RE.test(t)) {
+    return 'api'
+  }
+  if (isPathCitation(t)) {
+    return 'path'
+  }
+  if (PERM_RE.test(t)) {
+    return 'perm'
+  }
+  if (isTypeCitation(t)) {
+    return 'symbol'
+  }
+  return undefined
+}
+
+function add(map: Map<string, Bucket>, text: string, kind: CitationKind): void {
+  const key = text.toLowerCase()
+  const existing = map.get(key)
+  if (!existing) {
+    map.set(key, { text, terms: [text], role: 'strong', kind })
+    return
+  }
+  existing.terms = unique([...existing.terms, text])
+}
+
+function prefixPath(text: string, repo: string | undefined): string {
+  if (!repo || !text.includes('/')) {
+    return text
+  }
+  const t = text.replaceAll('\\', '/')
+  return t.split('/')[0] === repo ? t : `${repo}/${t.replace(/^\.?\//, '')}`
+}
+
+function harvestMarked(md: string, map: Map<string, Bucket>, repo?: string): void {
+  const spans = [
+    ...[...md.matchAll(/`([^`]+)`/g)].map((m) => m[1]),
+    ...[...md.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1]),
+    ...[...md.matchAll(PATH_IN_PROSE_RE)].map((m) => m[0]),
+  ]
+  for (const raw of spans) {
+    const kind = classifyCitation(raw)
+    if (!kind) {
       continue
     }
-    lines.push(m[2].replace(/^Requirement:\s*/i, ''))
-  }
-  return lines
-}
-
-function harvestMarked(md: string, map: Map<string, Bucket>): void {
-  for (const m of md.matchAll(/`([^`]+)`/g)) {
-    addCitation(map, m[1])
-  }
-  for (const m of md.matchAll(/\*\*([^*]+)\*\*/g)) {
-    addCitation(map, m[1])
-  }
-  for (const m of md.matchAll(/(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+/g)) {
-    addCitation(map, m[0])
+    const text = kind === 'path' ? prefixPath(raw.trim(), repo) : raw.trim()
+    add(map, text, kind)
   }
 }
 
-function addUnigram(map: Map<string, Bucket>, word: string): void {
-  if (isNever(word)) {
-    return
-  }
-  if (isPathOnly(word)) {
-    add(map, word.toLowerCase(), expandUnigram(word.toLowerCase()), 'path-only')
-    return
-  }
-  add(map, word.toLowerCase(), expandUnigram(word), 'domain')
-}
-
-function kebabPieces(name: string, map: Map<string, Bucket>): void {
-  for (const piece of name.split('-').filter(Boolean)) {
-    addUnigram(map, piece)
+function harvestTasks(md: string, map: Map<string, Bucket>): void {
+  for (const line of md.split(/\r?\n/)) {
+    const repos = [...line.matchAll(REPO_BRACKET_RE)].map((m) => m[1])
+    harvestMarked(line, map, repos.at(-1))
   }
 }
 
-export function harvestConcepts(
-  changeName: string,
-  specDirs: string[],
-  documents: ChangeDocument[],
-): HarvestedConcept[] {
+function isProposal(relativePath: string): boolean {
+  return relativePath === 'proposal.md' || relativePath.endsWith('/proposal.md')
+}
+
+function isTasks(relativePath: string): boolean {
+  return relativePath === 'tasks.md' || relativePath.endsWith('/tasks.md')
+}
+
+function dropOosBullets(body: string): string {
+  return body
+    .split(/\r?\n/)
+    .filter((line) => !(/^\s*[-*]\s+/.test(line) && OOS_PHRASE.test(line)))
+    .join('\n')
+}
+
+function inScopeProposal(md: string): string {
+  const parts: string[] = []
+  let heading = ''
+  let body: string[] = []
+  const flush = (): void => {
+    if (heading && OOS_HEADING.test(heading)) {
+      return
+    }
+    const text = body.join('\n')
+    const kept = /^(What Changes|Impact)$/i.test(heading) ? dropOosBullets(text) : text
+    if (heading) {
+      parts.push(`## ${heading}\n${kept}`)
+    } else {
+      parts.push(kept)
+    }
+  }
+  for (const line of md.split(/\r?\n/)) {
+    const m = /^(#{1,6})\s+(.*)$/.exec(line)
+    if (m) {
+      flush()
+      heading = m[2].trim()
+      body = []
+    } else {
+      body.push(line)
+    }
+  }
+  flush()
+  return parts.join('\n')
+}
+
+export function harvestConcepts(documents: ChangeDocument[]): HarvestedConcept[] {
   const map = new Map<string, Bucket>()
-  kebabPieces(changeName, map)
-  for (const dir of specDirs) {
-    kebabPieces(dir, map)
-  }
-
   for (const doc of documents) {
-    harvestMarked(doc.content, map)
-    for (const heading of headingLines(doc.content)) {
-      phrasesFromTokens(tokenize(stripMarks(heading)), map)
-    }
-    if (doc.relativePath === 'proposal.md' || doc.relativePath.endsWith('/proposal.md')) {
-      phrasesFromTokens(tokenize(stripMarks(markdownSection(doc.content, 'What Changes'))), map)
-      phrasesFromTokens(tokenize(stripMarks(markdownSection(doc.content, 'Impact'))), map)
+    const content = isProposal(doc.relativePath) ? inScopeProposal(doc.content) : doc.content
+    if (isTasks(doc.relativePath)) {
+      harvestTasks(content, map)
+    } else {
+      harvestMarked(content, map)
     }
   }
-
-  return [...map.values()]
-    .filter((b) => b.terms.length > 0)
-    .map((b) => ({ text: b.text, search_terms: b.terms, role: b.role }))
+  return [...map.values()].map((b) => ({
+    text: b.text,
+    search_terms: b.terms,
+    role: b.role,
+    kind: b.kind,
+  }))
 }
 
 export function publicConcepts(harvested: HarvestedConcept[]): Concept[] {
-  return harvested.filter((c) => !isCjkToken(c.text)).map(({ text }) => ({ text }))
-}
-
-export function citationConcepts(harvested: HarvestedConcept[]): Concept[] {
-  return harvested
-    .filter((c) => c.role === 'strong' && isSearchableCitation(c.text))
-    .map(({ text }) => ({ text }))
+  return harvested.map(({ text }) => ({ text }))
 }
 
 export function isSearchableCitation(text: string): boolean {
-  if (/^(GET|POST|PUT|PATCH|DELETE)\s+\//i.test(text)) {
+  if (HTTP_API_RE.test(text)) {
     return true
   }
   if (/\s/.test(text)) {
@@ -306,46 +274,40 @@ export function isSearchableCitation(text: string): boolean {
   return /[A-Za-z]/.test(text)
 }
 
-export function kebabWordsFrom(changeName: string, specDirs: string[]): string[] {
-  return [changeName, ...specDirs].flatMap((s) => s.split('-').filter(Boolean))
+function byText(a: HarvestedConcept, b: HarvestedConcept): number {
+  return a.text.localeCompare(b.text)
 }
 
-export function toSearchConcepts(
-  harvested: HarvestedConcept[],
-  kebabWords: string[],
-): HarvestedConcept[] {
-  const citations = harvested
-    .filter((c) => c.role === 'strong' && isSearchableCitation(c.text))
-    .sort((a, b) => b.text.length - a.text.length || a.text.localeCompare(b.text))
-    .slice(0, SEARCH_TERM_CAP)
-
-  const seen = new Set(citations.map((c) => c.text.toLowerCase()))
-  const pathish: HarvestedConcept[] = []
-  const kebab = new Set(kebabWords.map((w) => w.toLowerCase()).filter((w) => !isNever(w)))
-
-  for (const c of harvested) {
-    const key = c.text.toLowerCase()
-    if (seen.has(key) || c.text.includes(' ')) {
-      continue
+function withTypeHeads(concepts: HarvestedConcept[]): HarvestedConcept[] {
+  return concepts.map((c) => {
+    const head = typeCitationHead(c.text)
+    if (!head || c.search_terms.includes(head)) {
+      return c
     }
-    if (kebab.has(key) && !isPathOnly(key)) {
-      pathish.push({ text: c.text, search_terms: c.search_terms, role: 'path-only' })
-      seen.add(key)
-    }
-  }
-  return [...citations, ...pathish]
+    return { ...c, search_terms: unique([...c.search_terms, head]) }
+  })
 }
 
-export function isPathOnlyTerm(term: string): boolean {
-  return isPathOnly(term)
+function kindOf(c: HarvestedConcept): CitationKind | undefined {
+  return c.kind ?? classifyCitation(c.text)
 }
 
-export function conceptRoleForTerm(concept: HarvestedConcept, term: string): TermRole {
-  if (concept.role === 'strong') {
-    return 'strong'
-  }
-  if (PATH_ONLY.has(term.toLowerCase())) {
-    return 'path-only'
-  }
+export function toSearchConcepts(harvested: HarvestedConcept[]): HarvestedConcept[] {
+  const all = harvested.filter((c) => c.search_terms.length > 0 && isSearchableCitation(c.text))
+  const files = all.filter((c) => kindOf(c) === 'path').sort(byText)
+  const types = all
+    .filter((c) => {
+      const k = kindOf(c)
+      return k === 'symbol' || (k === 'api' && !/\s/.test(c.text))
+    })
+    .sort(byText)
+  const seen = new Set([...files, ...types])
+  const rest = all
+    .filter((c) => !seen.has(c))
+    .sort((a, b) => b.text.length - a.text.length || byText(a, b))
+  return withTypeHeads([...files, ...types, ...rest].slice(0, SEARCH_TERM_CAP))
+}
+
+export function conceptRoleForTerm(concept: HarvestedConcept, _term: string): TermRole {
   return concept.role
 }

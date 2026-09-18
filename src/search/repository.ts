@@ -17,7 +17,7 @@ import type {
   ReasonType,
   TermRole,
 } from '../models/evidence.js'
-import { conceptRoleForTerm, PATH_ONLY } from './terms.js'
+import { conceptRoleForTerm } from './terms.js'
 
 export const SEARCH_EXCLUDES = [
   'openspec',
@@ -217,7 +217,7 @@ export function searchConcepts(root: string, concepts: HarvestedConcept[]): File
       if (!termRole.has(term) || role === 'strong') {
         termRole.set(term, role)
       }
-      const pathOnly = role === 'path-only' || PATH_ONLY.has(term.toLowerCase())
+      const pathOnly = role === 'path-only'
       if (!pathOnly && !contentTerms.includes(term)) {
         contentTerms.push(term)
       }
@@ -359,6 +359,20 @@ function isNamedTerm(term: string, path: string): boolean {
   return term.includes('/') && path.endsWith(term)
 }
 
+export function namedMatchLength(path: string, reasons: Reason[]): number {
+  let max = 0
+  for (const r of reasons) {
+    if ((r.type === 'path_match' || r.type === 'symbol_match') && isNamedTerm(r.term, path)) {
+      max = Math.max(max, r.term.length)
+    }
+  }
+  return max
+}
+
+export function isNamedCandidate(path: string, reasons: Reason[]): boolean {
+  return namedMatchLength(path, reasons) > 0
+}
+
 function isCodeIdentifier(term: string): boolean {
   if (term.includes('/') || /\.(vue|tsx|ts|jsx|js|java)$/i.test(term)) {
     return true
@@ -371,11 +385,7 @@ function isCodeIdentifier(term: string): boolean {
 
 function seedRank(c: { path: string; confidence: Confidence; reasons?: Reason[] }): number {
   const reasons = c.reasons ?? []
-  if (
-    reasons.some(
-      (r) => (r.type === 'path_match' || r.type === 'symbol_match') && isNamedTerm(r.term, c.path),
-    )
-  ) {
+  if (isNamedCandidate(c.path, reasons)) {
     return 0
   }
   if (reasons.some((r) => r.type === 'symbol_match' && isCodeIdentifier(r.term))) {

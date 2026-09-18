@@ -97,13 +97,3 @@ export function readChangeDocuments(changeDir: string): ChangeDocument[] {
   walkMarkdown(join(changeDir, 'specs'), changeDir, docs)
   return docs
 }
-
-export function specDirNames(changeDir: string): string[] {
-  const specs = join(changeDir, 'specs')
-  if (!existsSync(specs)) {
-    return []
-  }
-  return readdirSync(specs, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
-}

@@ -6,12 +6,7 @@ import {
   type ScopeDocument,
   type TestEntry,
 } from '../models/evidence.js'
-import {
-  findProjectRoot,
-  readChangeDocuments,
-  resolveChange,
-  specDirNames,
-} from '../openspec/parser.js'
+import { findProjectRoot, readChangeDocuments, resolveChange } from '../openspec/parser.js'
 import {
   confidenceFor,
   isTestPath,
@@ -20,13 +15,7 @@ import {
   searchConcepts,
   sortCandidates,
 } from '../search/repository.js'
-import {
-  harvestConcepts,
-  kebabWordsFrom,
-  publicConcepts,
-  citationConcepts,
-  toSearchConcepts,
-} from '../search/terms.js'
+import { harvestConcepts, publicConcepts, toSearchConcepts } from '../search/terms.js'
 
 export type ScopeOptions = {
   cwd: string
@@ -42,10 +31,9 @@ export function runScope(opts: ScopeOptions): ScopeDocument {
   }
   const located = resolveChange(projectRoot, opts.change)
   const documents = readChangeDocuments(located.changeDir)
-  const dirs = specDirNames(located.changeDir)
-  const harvested = harvestConcepts(located.name, dirs, documents)
+  const harvested = harvestConcepts(documents)
   const search = opts.search !== false
-  const searchSet = toSearchConcepts(harvested, kebabWordsFrom(located.name, dirs))
+  const searchSet = toSearchConcepts(harvested)
   const hits = search ? searchConcepts(projectRoot, searchSet) : []
 
   const sources: Candidate[] = []
@@ -101,7 +89,7 @@ export function runScope(opts: ScopeOptions): ScopeDocument {
   return {
     version: 1,
     change: { name: located.name, path: located.path },
-    concepts: search ? citationConcepts(harvested) : publicConcepts(harvested),
+    concepts: publicConcepts(harvested),
     candidates: ranked,
     tests,
   }
