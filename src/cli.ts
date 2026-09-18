@@ -2,17 +2,26 @@
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { LocateError, UsageError } from './models/evidence.js'
+import { runHistory } from './commands/history.js'
 import { runScope } from './commands/scope.js'
-import { toYaml } from './output/yaml.js'
+import { toHistoryYaml, toYaml } from './output/yaml.js'
 
 export const USAGE = `Usage: osi scope [--no-search] [--include-low] <change-id|path>
+       osi history <change-id|path>
 
 Parse an OpenSpec change into concepts and search terms, then scan the repository
 for candidate files. Prints YAML to stdout. Pass --no-search to skip the scan.
+osi history prints named seeds and same-repo co-change neighbors.
 `
 
 export type ParsedArgs =
-  | { ok: true; command: 'scope'; includeLow: boolean; search: boolean; change: string }
+  | {
+      ok: true
+      command: 'scope' | 'history'
+      includeLow: boolean
+      search: boolean
+      change: string
+    }
   | { ok: false; message: string }
 
 export function parseArgv(argv: string[]): ParsedArgs {
@@ -35,14 +44,14 @@ export function parseArgv(argv: string[]): ParsedArgs {
   if (!command) {
     return { ok: false, message: USAGE }
   }
-  if (command !== 'scope') {
+  if (command !== 'scope' && command !== 'history') {
     return { ok: false, message: `Unknown command: ${command}\n${USAGE}` }
   }
   const change = positional[1]
   if (!change || positional.length > 2) {
     return { ok: false, message: USAGE }
   }
-  return { ok: true, command: 'scope', includeLow, search, change }
+  return { ok: true, command, includeLow, search, change }
 }
 
 export function main(argv = process.argv.slice(2), cwd = process.cwd()): number {
@@ -52,6 +61,10 @@ export function main(argv = process.argv.slice(2), cwd = process.cwd()): number 
     return 1
   }
   try {
+    if (parsed.command === 'history') {
+      process.stdout.write(toHistoryYaml(runHistory({ cwd, change: parsed.change })))
+      return 0
+    }
     const doc = runScope({
       cwd,
       change: parsed.change,
