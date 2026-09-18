@@ -1,15 +1,23 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, symlinkSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { parseArgv } from '../src/cli.js'
 import { runScope } from '../src/commands/scope.js'
-import { LocateError } from '../src/models/evidence.js'
+import { LocateError, type HarvestedConcept } from '../src/models/evidence.js'
 import { toYaml } from '../src/output/yaml.js'
-import { limitCandidates, limitLow, sortCandidates } from '../src/search/repository.js'
+import {
+  SEARCH_EXCLUDES,
+  WIDE_CONTENT_HITS,
+  limitCandidates,
+  limitLow,
+  rgGlobs,
+  searchConcepts,
+  sortCandidates,
+} from '../src/search/repository.js'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const fixture = join(repoRoot, 'tests/fixtures/mini-repo')
@@ -255,5 +263,71 @@ describe('osi scope against fixture', () => {
     assert.notEqual(r.status, 0)
     assert.match(r.stderr, /not found/)
     assert.equal(r.stdout.includes('version:'), false)
+  })
+})
+
+function cited(text: string): HarvestedConcept {
+  return { text, search_terms: [text], role: 'strong', kind: 'symbol' }
+}
+
+describe('repository search', () => {
+  it('rg globs exclude listed dirs at any depth', () => {
+    const g = rgGlobs()
+    for (const dir of SEARCH_EXCLUDES) {
+      assert.ok(g.includes(`!**/${dir}/**`), dir)
+    }
+  })
+
+  it('does not emit nested node_modules as candidates', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'osi-nm-'))
+    cpSync(fixture, dir, { recursive: true })
+    mkdirSync(join(dir, 'pkg/node_modules/left-pad'), { recursive: true })
+    writeFileSync(join(dir, 'pkg/node_modules/left-pad/index.js'), 'export const TenantList = 1\n')
+    const doc = runScope({ cwd: dir, change: 'add-renewal-status', includeLow: true })
+    assert.equal(
+      doc.candidates.some((c) => c.path.includes('node_modules')),
+      false,
+    )
+    assert.equal(
+      doc.tests.some((t) => t.path.includes('node_modules')),
+      false,
+    )
+  })
+
+  it('does not attribute a rare term to a file that only matched another', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'osi-attr-'))
+    mkdirSync(join(dir, 'src/unrelated'), { recursive: true })
+    mkdirSync(join(dir, 'src/pages'), { recursive: true })
+    writeFileSync(join(dir, 'src/unrelated/Grid.ts'), 'export const VTable = 1\n')
+    writeFileSync(
+      join(dir, 'src/pages/TenantList.tsx'),
+      'export function TenantList() { return 1 }\n',
+    )
+    const hits = searchConcepts(dir, [cited('TenantList'), cited('VTable')])
+    const grid = hits.find((h) => h.path === 'src/unrelated/Grid.ts')
+    assert.ok(grid)
+    assert.equal(
+      grid.reasons.some((r) => r.term === 'TenantList'),
+      false,
+    )
+  })
+
+  it('wide content terms keep path_match only', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'osi-wide-'))
+    mkdirSync(join(dir, 'src/components/table'), { recursive: true })
+    writeFileSync(join(dir, 'src/components/table/VTable.vue'), '<template>VTable</template>\n')
+    for (let i = 0; i < WIDE_CONTENT_HITS + 1; i++) {
+      writeFileSync(
+        join(dir, `src/f${String(i).padStart(2, '0')}.ts`),
+        'import { VTable } from "ui"\n',
+      )
+    }
+    const hits = searchConcepts(dir, [cited('VTable')])
+    const vue = hits.find((h) => h.path === 'src/components/table/VTable.vue')
+    assert.ok(vue?.reasons.some((r) => r.type === 'path_match' && r.term === 'VTable'))
+    assert.equal(
+      hits.some((h) => /^src\/f\d+\.ts$/.test(h.path)),
+      false,
+    )
   })
 })

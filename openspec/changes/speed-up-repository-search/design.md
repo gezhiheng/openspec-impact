@@ -28,7 +28,7 @@ See proposal.md for motivation. `searchConcepts` in `src/search/repository.ts` l
 
 - **Choice**: In `harvestMarked`, ignore a backtick/bold span when the current line is an unordered list item and the span is the first marked token, immediately followed by `:`. Covers `- **Tenant**:`, `- **Permission**:`, `- **Compatibility**:` without listing Impact headings.
 - **Why**: QFT proposals reuse OpenSpec Impact field names. A denylist would miss the next label (`**Status**`).
-- **Alternative**: Never harvest bold, only backticks — would drop real `` **TenantList** `` citations. Rejected.
+- **Alternative**: Never harvest bold, only backticks — would drop real `**TenantList**` citations. Rejected.
 
 ### 3. Line-oriented `rg`, not a second full-file loop
 

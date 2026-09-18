@@ -48,44 +48,19 @@ After locating the change, the CLI MUST read `proposal.md`, every markdown file 
 
 ### Requirement: Scope harvests concepts and search terms
 
-The CLI MUST extract concepts from the change documents without calling a language model. It MUST harvest:
+The CLI MUST extract concepts from the change documents without calling a language model. Default repository search MUST query only **typed** citations. It MUST NOT use bag-of-words: change-directory or capability kebab unigrams, 2–3 token phrases from headings or What Changes / Impact, `PATH_ONLY` unigrams as content queries, or Chinese n-grams.
 
-- citation tokens: backtick / inline-code / bold spans that are paths, APIs, or identifiers (including `PascalCase`, `camelCase`, `snake_case`, dotted table/column names, and `METHOD /path` API strings)
-- path-like tokens that appear in prose (not under `openspec/`)
-- unigram kebab pieces of the change directory name and capability directory names, after never-search / path-only filtering
-- 2–3 token phrases from headings, `### Requirement` lines, and the proposal sections What Changes and Impact
+Typed citations MUST be classified as:
 
-It MUST NOT n-gram scenario / Why body prose. It MUST NOT n-gram the change directory name or capability directory names into 2–3 word phrases. It MUST NOT translate Chinese into English.
+- **repo**: a bracket token such as `[qft-app]` or the first path segment of a posix path that names a nested package. Repo tokens are path prefixes only and MUST NOT be queried as file content.
+- **path**: a posix file path (including a basename with an implementation suffix such as `.vue` `.java` `.xml`).
+- **symbol**: a `PascalCase` identifier or `Type.member`.
+- **api**: an HTTP `METHOD /path` string or `FooApi.member`.
+- **perm**: a `SCREAMING_SNAKE` permission or config code (two or more uppercase segments).
 
-It MUST NOT harvest as concept `text`:
+Sources for typed citations: backtick / inline-code / bold spans, path-like tokens in prose (not under `openspec/`), and `[repo]` markers in `tasks.md`. SQL predicates/assignments, never-search standalone tokens, numeric-only tokens, and `openspec/` paths MUST NOT be harvested.
 
-- tokens on the never-search list (standalone)
-- backtick/bold spans that are SQL predicates or assignments (the span contains `=`, or matches a closed SQL-noise list as the whole token)
-- tokens that are only digits, punctuation, or numeric literals (for example `0.00`)
-- path-like tokens whose first path segment is `openspec`
-
-Tokens in the path-only list MAY be used only for path matching, never as content or symbol queries. Multi-word phrases that contain a path-only word (for example `tenant list`) MUST still be expanded and fully searched when those phrases come from headings or proposal sections (not from directory-name n-grams).
-
-Search-term expansion MUST be limited to:
-
-- multi-word phrases → `camelCase`, `PascalCase`, `snake_case`, `kebab-case`
-- single words → original + `PascalCase`
-- tokens that are already paths or harvested identifiers → no further expansion
-
-The CLI MUST NOT emit a `type` field on concepts. Default repository search MUST query only harvested search terms that are not path-only unigrams; dropped noise MUST NOT be queried.
-
-Never-search (standalone): `should` `must` `shall` `may` `system` `user` `when` `then` `given` `and` `the` `a` `an` `to` `of` `in` `on` `for` `with` `by` `from` `this` `that` `support` `display` `add` `added` `change` `changes` `requirement` `scenario` `purpose` `why` `what` `id` `env` `alter` `explain` `ifnull` `count`
-
-SQL-noise (whole backtick/bold token, case-insensitive): `IFNULL` `DATE_FORMAT` `ALTER` `EXPLAIN` `COUNT(*)` `COUNT`
-
-Path-only: `filter` `export` `search` `create` `update` `renew` `list` `detail` `page` `status` `form` `view` `modal` `dialog` `table` `button` `sync` `report` `checkout` `variable`
-
-#### Scenario: Phrase from What Changes is expanded
-
-- **WHEN** What Changes contains the phrase `renewal status`
-- **THEN** the YAML `concepts` list includes an entry whose `text` is `renewal status`
-- **AND** that entry has no `search_terms` field
-- **AND** no concept `text` is `RENEWALSTATUS`
+`osi scope` YAML `concepts` MUST list the in-scope typed citation `text` values (no `search_terms`, no `type` field). Default search MUST query those texts (plus `Type.member` left segment `Type`) after out-of-scope subtraction.
 
 #### Scenario: Identifier is not re-cased
 
@@ -93,29 +68,21 @@ Path-only: `filter` `export` `search` `create` `update` `renew` `list` `detail` 
 - **THEN** `concepts` includes an entry whose `text` is `TenantList`
 - **AND** that entry has no `search_terms` field
 
+#### Scenario: Phrase from What Changes is not bag-searched
+
+- **WHEN** What Changes contains the phrase `renewal status` and no typed citation for that phrase
+- **THEN** default search does not query `renewalStatus` / `RenewalStatus` as bag-of-words expansions of that heading phrase
+
+#### Scenario: Change id is not used as search unigrams
+
+- **WHEN** the change directory name is `sync-variable-sublease-checkout-report`
+- **AND** those kebab pieces are not typed citations
+- **THEN** default search does not query `sync` or `sublease` as path-only or content terms from the directory name
+
 #### Scenario: Stop word is not a search term
 
 - **WHEN** the documents use the word `should` only as a standalone English word
 - **THEN** `should` does not appear as any concept `text`
-
-#### Scenario: Path-only word does not content-match alone
-
-- **WHEN** the harvested terms include standalone `filter` and a file's contents mention `filter` but its path does not
-- **AND** that file has no other matching terms
-- **THEN** that file is not emitted as a default (high/medium) candidate solely for that content hit
-
-#### Scenario: Change id is not n-grammed into concepts
-
-- **WHEN** the change directory name is `sync-variable-sublease-checkout-report`
-- **AND** those words do not appear as a heading or What Changes / Impact phrase
-- **THEN** `concepts` does not include `text` `sync variable sublease`
-- **AND** `concepts` does not include `text` `variable sublease checkout`
-
-#### Scenario: SQL backtick is not a concept
-
-- **WHEN** a document contains `` `relet_type = 2` `` or `` `IFNULL` ``
-- **THEN** `concepts` does not include `text` `relet_type = 2`
-- **AND** `concepts` does not include `text` `IFNULL`
 
 #### Scenario: OpenSpec path citation is dropped
 
@@ -126,6 +93,72 @@ Path-only: `filter` `export` `search` `create` `update` `renew` `list` `detail` 
 
 - **WHEN** documents use `id` only as a standalone English token (not as part of `checkOutId` or `qft_tenants_relet.id`)
 - **THEN** `id` does not appear as any concept `text`
+
+#### Scenario: HTTP API is a typed citation
+
+- **WHEN** a document contains `` `GET /api/finance/bill/getBillCode` ``
+- **THEN** `concepts` includes that API string as `text`
+
+#### Scenario: Permission code is a typed citation
+
+- **WHEN** a document contains `` `CHECK_OUT_REPORT_DETAIL` ``
+- **THEN** `concepts` includes `text` `CHECK_OUT_REPORT_DETAIL`
+
+#### Scenario: Repo bracket is not a content query
+
+- **WHEN** `tasks.md` contains `[qft-app]` on a task line
+- **THEN** default search does not use `qft-app` as a content/symbol query
+- **AND** path citations under `qft-app/` remain searchable as paths
+
+### Requirement: Proposal out-of-scope citations are excluded from search
+
+The CLI MUST parse `proposal.md` for out-of-scope material: a heading `Out of scope` / `Out of Scope` / `不在范围` / `明确不修` / `本期不修`, or Impact / What Changes bullets that contain `Out of scope`, `明确不修`, `不在范围`, or `本期不修`. Typed citations found only in that material MUST NOT be queried and MUST NOT become history seeds. A more specific out-of-scope citation (for example `TenantCheckOutPact.loadDynamicHeaders`) MUST NOT remove a distinct in-scope citation for a shorter name (`TenantCheckOutPact`) that still appears outside out-of-scope text.
+
+#### Scenario: Out-of-scope file is not a seed
+
+- **WHEN** proposal Impact says the change will not modify `` `LegacyExport.js` `` under out-of-scope
+- **AND** no in-scope document cites `LegacyExport.js`
+- **THEN** default search does not query `LegacyExport.js`
+- **AND** that path is absent from `osi history` `seeds`
+
+#### Scenario: In-scope short name survives a specific out-of-scope member
+
+- **WHEN** in-scope text cites `` `TenantCheckOutPact` ``
+- **AND** out-of-scope text cites `` `TenantCheckOutPact.loadDynamicHeaders` ``
+- **THEN** default search still queries `TenantCheckOutPact`
+
+### Requirement: Search-term cap prefers filename and type citations
+
+When default repository search cannot query every harvested citation, the CLI MUST fill the search-term budget in this order, then stop at the existing cap:
+
+1. **File citations**: a strong citation whose `text` is a single path segment (no `/` or whitespace) ending in an implementation suffix `.vue` `.tsx` `.ts` `.jsx` `.java` `.xml` `.rs` or `.go`. Citations ending in `.js` `.md` `.sql` or similar MUST NOT enter this bucket.
+2. **Type citations**: a strong citation that is a `PascalCase` identifier, or a `PascalCase.member` token from which the CLI also searches the `PascalCase` left segment. `ss.remark`, `row.sign`, and other lowercase-left dotted fields MUST NOT enter this bucket.
+3. **Remainder**: other searchable citations, longest `text` first (HTTP `METHOD /path` strings live here).
+
+The CLI MUST still query kebab path-only unigrams from the change id after these citations. It MUST NOT scan the repository with glob patterns such as `*.vue` in place of harvested citations.
+
+#### Scenario: Short Vue filename is searched before a longer dotted member
+
+- **WHEN** harvested citations include both `TenantCheckOutPact.vue` and a longer string `TenantCheckOutPact.loadDynamicHeaders`
+- **AND** the search-term cap cannot keep every citation
+- **THEN** `TenantCheckOutPact.vue` is among the queried search terms
+
+#### Scenario: CheckoutStatistics.vue is not dropped for length
+
+- **WHEN** harvested citations include `CheckoutStatistics.vue` (22 characters) and many longer API or dotted strings
+- **AND** the search-term cap is 80
+- **THEN** `CheckoutStatistics.vue` is among the queried search terms
+
+#### Scenario: Type.method keeps the type name
+
+- **WHEN** a document contains `` `BillApi.getBillCode` ``
+- **THEN** default search includes a term `BillApi`
+
+#### Scenario: Script suffix is not a file citation
+
+- **WHEN** harvested citations include `tenant-check-out-config.js` and `CheckoutStatistics.vue`
+- **AND** the search-term cap cannot keep every citation
+- **THEN** `CheckoutStatistics.vue` is preferred over `tenant-check-out-config.js` for the file-citation budget
 
 ### Requirement: Scope searches the project from the OpenSpec project root
 

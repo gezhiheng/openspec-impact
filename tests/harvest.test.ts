@@ -128,6 +128,29 @@ describe('harvest filters', () => {
     assert.ok(concepts.some((c) => c.text === 'CHECK_OUT_REPORT_DETAIL'))
   })
 
+  it('does not harvest Impact list-item field labels', () => {
+    const harvested = harvestConcepts(
+      docsFrom(
+        [
+          '## Impact',
+          '',
+          '- **Tenant**: companyId isolation',
+          '- **Permission**: existing auth',
+          '- Update `TenantList` on the tenant list',
+        ].join('\n'),
+      ),
+    )
+    const texts = harvested.map((c) => c.text)
+    assert.equal(texts.includes('Tenant'), false)
+    assert.equal(texts.includes('Permission'), false)
+    assert.ok(texts.includes('TenantList'))
+    const search = toSearchConcepts(harvested)
+    assert.equal(
+      search.some((c) => c.text === 'Tenant' || c.search_terms.includes('Tenant')),
+      false,
+    )
+  })
+
   it('does not search a repo bracket as content', () => {
     const harvested = harvestConcepts([
       {

@@ -42,6 +42,8 @@ export const SEARCH_EXCLUDES = [
 /** ponytail: skip HTML/minified blobs that dominate workspace search time; raise if templates must be candidates. */
 export const MAX_FILE_BYTES = 512 * 1024
 export const CANDIDATE_CAP = 120
+/** ponytail: drop content/symbol for terms that hit more than this many files; raise via a delta if a real identifier must stay a content candidate. */
+export const WIDE_CONTENT_HITS = 80
 /** ponytail: keeps one nested repo from filling the global cap; raise if a change is truly single-repo. */
 export const PER_REPO_CAP = 15
 
@@ -87,13 +89,10 @@ function skipExt(rel: string): boolean {
   )
 }
 
-function rgGlobs(): string[] {
-  const args = ['--hidden', '--no-ignore-vcs', '--glob', '!.git/**']
+export function rgGlobs(): string[] {
+  const args = ['--hidden', '--no-ignore-vcs']
   for (const dir of SEARCH_EXCLUDES) {
-    if (dir === '.git') {
-      continue
-    }
-    args.push('--glob', `!${dir}/**`)
+    args.push('--glob', `!**/${dir}/**`)
   }
   args.push(
     '--glob',
@@ -165,23 +164,25 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function compileTerm(term: string): { decl: RegExp; word: RegExp } {
+  const id = escapeRegExp(term)
+  return {
+    decl: new RegExp(String.raw`\b(?:function|class|type|const|interface|let|var|enum)\s+${id}\b`),
+    word: new RegExp(String.raw`\b${id}\b`),
+  }
+}
+
 export function pathMatches(relPath: string, term: string): boolean {
   return relPath.toLowerCase().includes(term.toLowerCase())
 }
 
 export function symbolMatches(content: string, term: string): boolean {
-  const id = escapeRegExp(term)
-  const decl = new RegExp(
-    String.raw`\b(?:function|class|type|const|interface|let|var|enum)\s+${id}\b`,
-  )
-  if (decl.test(content)) {
-    return true
-  }
-  return new RegExp(String.raw`\b${id}\b`).test(content)
+  const rx = compileTerm(term)
+  return rx.decl.test(content) || rx.word.test(content)
 }
 
 export function contentMatches(content: string, term: string): boolean {
-  return content.includes(term) || content.toLowerCase().includes(term.toLowerCase())
+  return content.includes(term)
 }
 
 export type FileHit = {
@@ -233,47 +234,60 @@ export function searchConcepts(root: string, concepts: HarvestedConcept[]): File
     }
   }
 
-  const contentFiles = rgContentFiles(root, contentTerms)
-  const toRead = contentFiles ?? (contentTerms.length > 0 ? files : [])
-  const contents = new Map<string, string>()
-  const read = (rel: string): string => {
-    const cached = contents.get(rel)
-    if (cached !== undefined) {
-      return cached
+  const compiled = new Map(contentTerms.map((t) => [t, compileTerm(t)]))
+  const lines = rgContentLines(root, contentTerms)
+  if (lines) {
+    for (const hit of lines) {
+      attributeLine(hit.path, hit.line, contentTerms, termRole, compiled, add)
     }
-    const abs = join(root, rel.split('/').join(sep))
-    let text = ''
-    try {
-      if (existsSync(abs) && statSync(abs).isFile() && statSync(abs).size <= MAX_FILE_BYTES) {
-        text = readFileSync(abs, 'utf8')
+  } else if (contentTerms.length > 0) {
+    for (const rel of files) {
+      const posix = rel.split(sep).join('/')
+      const abs = join(root, posix.split('/').join(sep))
+      let text = ''
+      try {
+        if (existsSync(abs) && statSync(abs).isFile() && statSync(abs).size <= MAX_FILE_BYTES) {
+          text = readFileSync(abs, 'utf8')
+        }
+      } catch {
+        text = ''
       }
-    } catch {
-      text = ''
-    }
-    contents.set(rel, text)
-    return text
-  }
-
-  for (const rel of toRead) {
-    const posix = rel.split(sep).join('/')
-    const content = read(posix)
-    if (!content) {
-      continue
-    }
-    for (const term of contentTerms) {
-      const role = termRole.get(term) ?? 'domain'
-      if (symbolMatches(content, term)) {
-        add(posix, 'symbol_match', term, role)
-      } else if (contentMatches(content, term)) {
-        add(posix, 'content_match', term, role)
+      if (!text) {
+        continue
       }
+      attributeLine(posix, text, contentTerms, termRole, compiled, add)
     }
   }
 
+  dropWideContent(hits)
   return [...hits.values()]
 }
 
-function rgContentFiles(root: string, terms: string[]): string[] | undefined {
+function attributeLine(
+  posix: string,
+  line: string,
+  contentTerms: string[],
+  termRole: Map<string, TermRole>,
+  compiled: Map<string, { decl: RegExp; word: RegExp }>,
+  add: (posix: string, type: ReasonType, term: string, role: TermRole) => void,
+): void {
+  for (const term of contentTerms) {
+    if (!line.includes(term)) {
+      continue
+    }
+    const role = termRole.get(term) ?? 'domain'
+    const rx = compiled.get(term)
+    if (rx && (rx.decl.test(line) || rx.word.test(line))) {
+      add(posix, 'symbol_match', term, role)
+    } else {
+      add(posix, 'content_match', term, role)
+    }
+  }
+}
+
+type RgLine = { path: string; line: string }
+
+function rgContentLines(root: string, terms: string[]): RgLine[] | undefined {
   if (terms.length === 0) {
     return []
   }
@@ -284,7 +298,7 @@ function rgContentFiles(root: string, terms: string[]): string[] | undefined {
   const file = join(dir, 'terms.txt')
   writeFileSync(file, `${terms.join('\n')}\n`)
   try {
-    const r = spawnSync('rg', ['-F', '-l', '-f', file, ...rgGlobs(), '.'], {
+    const r = spawnSync('rg', ['-F', '-f', file, '--json', ...rgGlobs(), '.'], {
       cwd: root,
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
@@ -293,13 +307,85 @@ function rgContentFiles(root: string, terms: string[]): string[] | undefined {
     if (r.status !== 0 && r.status !== 1) {
       return undefined
     }
-    return r.stdout
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map(posixFromRg)
-      .filter((p) => !excluded(p) && !skipExt(p))
+    return parseRgJson(r.stdout)
   } finally {
     rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+function parseRgJson(stdout: string): RgLine[] {
+  const out: RgLine[] = []
+  for (const raw of stdout.split(/\r?\n/)) {
+    if (!raw) {
+      continue
+    }
+    let ev: {
+      type?: string
+      data?: { path?: { text?: string }; lines?: { text?: string } }
+    }
+    try {
+      ev = JSON.parse(raw) as typeof ev
+    } catch {
+      continue
+    }
+    if (ev.type !== 'match') {
+      continue
+    }
+    const path = ev.data?.path?.text
+    const line = ev.data?.lines?.text
+    if (typeof path !== 'string' || typeof line !== 'string') {
+      continue
+    }
+    const posix = posixFromRg(path)
+    if (excluded(posix) || skipExt(posix)) {
+      continue
+    }
+    out.push({ path: posix, line })
+  }
+  return out
+}
+
+function dropWideContent(hits: Map<string, FileHit>): void {
+  const filesByTerm = new Map<string, Set<string>>()
+  for (const hit of hits.values()) {
+    for (const r of hit.reasons) {
+      if (r.type !== 'content_match' && r.type !== 'symbol_match') {
+        continue
+      }
+      let files = filesByTerm.get(r.term)
+      if (!files) {
+        files = new Set()
+        filesByTerm.set(r.term, files)
+      }
+      files.add(hit.path)
+    }
+  }
+  const wide = new Set<string>()
+  for (const [term, files] of filesByTerm) {
+    if (files.size > WIDE_CONTENT_HITS) {
+      wide.add(term)
+    }
+  }
+  if (wide.size === 0) {
+    return
+  }
+  for (const [path, hit] of hits) {
+    const reasons: Reason[] = []
+    const roles: TermRole[] = []
+    for (let i = 0; i < hit.reasons.length; i++) {
+      const r = hit.reasons[i]
+      if ((r.type === 'content_match' || r.type === 'symbol_match') && wide.has(r.term)) {
+        continue
+      }
+      reasons.push(r)
+      roles.push(hit.roles[i] ?? 'domain')
+    }
+    if (reasons.length === 0) {
+      hits.delete(path)
+      continue
+    }
+    hit.reasons = reasons
+    hit.roles = roles
   }
 }
 

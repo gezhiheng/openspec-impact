@@ -174,19 +174,36 @@ function prefixPath(text: string, repo: string | undefined): string {
   return t.split('/')[0] === repo ? t : `${repo}/${t.replace(/^\.?\//, '')}`
 }
 
+const LIST_LABEL_RE = /^\s*[-*]\s+(?:`([^`]+)`|\*\*([^*]+)\*\*)\s*:/
+
 function harvestMarked(md: string, map: Map<string, Bucket>, repo?: string): void {
-  const spans = [
-    ...[...md.matchAll(/`([^`]+)`/g)].map((m) => m[1]),
-    ...[...md.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1]),
-    ...[...md.matchAll(PATH_IN_PROSE_RE)].map((m) => m[0]),
-  ]
-  for (const raw of spans) {
+  for (const line of md.split(/\r?\n/)) {
+    harvestLine(line, map, repo)
+  }
+}
+
+function harvestLine(line: string, map: Map<string, Bucket>, repo?: string): void {
+  const label = LIST_LABEL_RE.exec(line)
+  const skipUntil = label ? (label.index ?? 0) + label[0].length : 0
+  const take = (raw: string, index: number): void => {
+    if (label && index < skipUntil) {
+      return
+    }
     const kind = classifyCitation(raw)
     if (!kind) {
-      continue
+      return
     }
     const text = kind === 'path' ? prefixPath(raw.trim(), repo) : raw.trim()
     add(map, text, kind)
+  }
+  for (const m of line.matchAll(/`([^`]+)`/g)) {
+    take(m[1], m.index ?? 0)
+  }
+  for (const m of line.matchAll(/\*\*([^*]+)\*\*/g)) {
+    take(m[1], m.index ?? 0)
+  }
+  for (const m of line.matchAll(PATH_IN_PROSE_RE)) {
+    take(m[0], m.index ?? 0)
   }
 }
 
