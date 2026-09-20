@@ -68,7 +68,7 @@ describe('osi evidence pipeline', () => {
     assert.equal(/^concepts:$/m.test(yaml), false)
     assert.equal(/^tests:$/m.test(yaml), false)
 
-    const r = spawnSync(process.execPath, [cli, 'add-renewal-status'], {
+    const r = spawnSync(process.execPath, [cli, 'impact', 'add-renewal-status'], {
       cwd: mini,
       encoding: 'utf8',
     })
@@ -78,11 +78,19 @@ describe('osi evidence pipeline', () => {
     assert.equal(/^scope:$/m.test(r.stdout), false)
     assert.equal(/^candidates:$/m.test(r.stdout), false)
 
+    const bare = spawnSync(process.execPath, [cli, 'add-renewal-status'], {
+      cwd: mini,
+      encoding: 'utf8',
+    })
+    assert.notEqual(bare.status, 0)
+    assert.equal(bare.stdout.includes('version:'), false)
+    assert.equal(bare.stdout.includes('seeds:'), false)
+
     assert.throws(
       () => runEvidence({ cwd: mini, change: 'does-not-exist', includeLow: false }),
       LocateError,
     )
-    const miss = spawnSync(process.execPath, [cli, 'does-not-exist'], {
+    const miss = spawnSync(process.execPath, [cli, 'impact', 'does-not-exist'], {
       cwd: mini,
       encoding: 'utf8',
     })
@@ -92,7 +100,7 @@ describe('osi evidence pipeline', () => {
   })
 
   it('osi --no-search empties seeds and history', () => {
-    const r = spawnSync(process.execPath, [cli, '--no-search', 'add-renewal-status'], {
+    const r = spawnSync(process.execPath, [cli, '--no-search', 'impact', 'add-renewal-status'], {
       cwd: mini,
       encoding: 'utf8',
     })
@@ -128,7 +136,7 @@ describe('osi evidence pipeline', () => {
       false,
     )
 
-    const pipe = spawnSync(process.execPath, [cli, 'add-renewal-status'], {
+    const pipe = spawnSync(process.execPath, [cli, 'impact', 'add-renewal-status'], {
       cwd: dir,
       encoding: 'utf8',
     })

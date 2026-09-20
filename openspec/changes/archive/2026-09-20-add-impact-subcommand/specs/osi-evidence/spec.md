@@ -1,14 +1,8 @@
-# osi-evidence Specification
-
-## Purpose
-
-Lets an operator or Skill run `osi <change>` and receive one YAML document with separate scope (lexical candidates) and history (git co-change) sections, so the default CLI path is the full evidence pipeline without mixing those layers into one confidence score.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Default invocation runs the evidence pipeline
 
-When the first positional argument is `impact`, the CLI SHALL treat the next positional as a change identifier or path and run the evidence pipeline: locate the same live OpenSpec change as `osi scope`, produce scope internally (typed search), then the history layer from that result. `osi impact` with no change, extra positionals, or a bare change id with no verb MUST be a usage error: non-zero exit, stderr help, no YAML on stdout. Locate failure MUST exit non-zero, explain on stderr, and MUST NOT print YAML on stdout. `osi scope <change>` and `osi history <change>` MUST remain available. `osi scope` MUST keep its existing top-level YAML shape (`concepts`, `candidates`, `tests`). `osi history` MUST keep `version`, `change`, `seeds`, `history`. A live change whose id is `impact` is reachable only as a path (`openspec/changes/impact`).
+When the first positional argument is `impact`, the CLI SHALL treat the next positional as a change identifier or path and run the evidence pipeline: locate the same live OpenSpec change as `osi scope`, produce scope internally (typed search), then the history layer from that result. `osi impact` with no change, extra positionals, or a bare change id with no verb MUST be a usage error: non-zero exit, stderr help, no YAML on stdout. Locate failure MUST exit non-zero, explain on stderr, and MUST NOT print YAML on stdout. `osi scope <change>` and `osi history <change>` MUST remain available. `osi init` MUST remain available and MUST NOT run the evidence pipeline. `osi scope` MUST keep its existing top-level YAML shape (`concepts`, `candidates`, `tests`). `osi history` MUST keep `version`, `change`, `seeds`, `history`. A live change whose id is `impact` or `init` is reachable only as a path (`openspec/changes/impact`).
 
 #### Scenario: Change id runs the pipeline
 
@@ -32,6 +26,12 @@ When the first positional argument is `impact`, the CLI SHALL treat the next pos
 - **WHEN** the operator runs `osi add-renewal-status` from a project that contains that live change
 - **THEN** the CLI exits non-zero
 - **AND** stdout is not a YAML document
+
+#### Scenario: Init does not run the pipeline
+
+- **WHEN** the operator runs `osi init` from a project that contains `openspec/changes/init/`
+- **THEN** the CLI does not treat `init` as that change
+- **AND** stdout is not the history-shaped YAML
 
 ### Requirement: Pipeline YAML nests scope and history
 

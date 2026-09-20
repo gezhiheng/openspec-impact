@@ -7,20 +7,20 @@ import { runHistory } from './commands/history.js'
 import { runScope } from './commands/scope.js'
 import { toHistoryYaml, toYaml } from './output/yaml.js'
 
-export const USAGE = `Usage: osi [--no-search] [--include-low] <change-id|path>
+export const USAGE = `Usage: osi impact [--no-search] [--include-low] <change-id|path>
        osi scope [--no-search] [--include-low] <change-id|path>
        osi history <change-id|path>
 
-Default: print seeds + history YAML for a live OpenSpec change.
-scope and history are reserved layer commands.
+impact prints seeds + history YAML for a live OpenSpec change.
+scope, history, and impact are reserved commands.
 `
 
-const LAYERS = new Set(['scope', 'history'])
+const LAYERS = new Set(['scope', 'history', 'impact'])
 
 export type ParsedArgs =
   | {
       ok: true
-      command: 'scope' | 'history' | 'evidence'
+      command: 'scope' | 'history' | 'impact'
       includeLow: boolean
       search: boolean
       change: string
@@ -54,16 +54,13 @@ export function parseArgv(argv: string[]): ParsedArgs {
     }
     return {
       ok: true,
-      command: first as 'scope' | 'history',
+      command: first as 'scope' | 'history' | 'impact',
       includeLow,
       search,
       change,
     }
   }
-  if (positional.length !== 1) {
-    return { ok: false, message: USAGE }
-  }
-  return { ok: true, command: 'evidence', includeLow, search, change: first }
+  return { ok: false, message: USAGE }
 }
 
 export function main(argv = process.argv.slice(2), cwd = process.cwd()): number {

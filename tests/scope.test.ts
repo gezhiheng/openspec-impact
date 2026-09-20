@@ -28,14 +28,17 @@ function byPath(doc: ReturnType<typeof runScope>, path: string) {
 }
 
 describe('argv', () => {
-  it('treats a bare change id as the pipeline and keeps layer commands', () => {
+  it('requires impact for the pipeline and keeps layer commands', () => {
     assert.equal(parseArgv([]).ok, false)
-    const pipeline = parseArgv(['nope'])
+    assert.equal(parseArgv(['nope']).ok, false)
+    assert.equal(parseArgv(['add-renewal-status']).ok, false)
+    const pipeline = parseArgv(['impact', 'nope'])
     assert.equal(pipeline.ok, true)
     if (pipeline.ok) {
-      assert.equal(pipeline.command, 'evidence')
+      assert.equal(pipeline.command, 'impact')
       assert.equal(pipeline.change, 'nope')
     }
+    assert.equal(parseArgv(['impact']).ok, false)
     assert.equal(parseArgv(['scope']).ok, false)
     const ok = parseArgv(['scope', '--include-low', 'add-renewal-status'])
     assert.equal(ok.ok, true)
@@ -50,10 +53,11 @@ describe('argv', () => {
     if (noSearch.ok) {
       assert.equal(noSearch.search, false)
     }
-    const flagThenChange = parseArgv(['--no-search', 'add-renewal-status'])
+    assert.equal(parseArgv(['--no-search', 'add-renewal-status']).ok, false)
+    const flagThenChange = parseArgv(['--no-search', 'impact', 'add-renewal-status'])
     assert.equal(flagThenChange.ok, true)
     if (flagThenChange.ok) {
-      assert.equal(flagThenChange.command, 'evidence')
+      assert.equal(flagThenChange.command, 'impact')
       assert.equal(flagThenChange.search, false)
       assert.equal(flagThenChange.change, 'add-renewal-status')
     }
