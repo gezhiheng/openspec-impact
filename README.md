@@ -6,6 +6,8 @@
 
 Deterministic evidence CLI for a live [OpenSpec](https://github.com/Fission-AI/OpenSpec) change. Package name `openspec-impact`, binary `osi`.
 
+If your workflow already involves OpenSpec, this helps you assess a requirement's impact surface during spec-driven development (SDD).
+
 It harvests typed citations from change docs, searches the repo, and (optionally) expands git co-change neighbors. Output is YAML on stdout. It does **not** decide which files must change, and it does not call an LLM.
 
 A Cursor skill (`/osi-impact`) reads that YAML and writes the impact surface in prose.
@@ -98,6 +100,8 @@ npm run fmt       # oxfmt + oxlint
 ## 中文
 
 面向一份进行中的 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 变更的**确定性证据** CLI。包名 `openspec-impact`，命令 `osi`。
+
+如果你的工作流中涉及了 OpenSpec，这可以帮助你在 SDD 开发中用来评估需求影响范围。
 
 它从变更文档里抽出带类型的引用（路径、符号、API、权限码），在仓库里搜文件，再用 git 同改记录补邻居。结果打到 stdout 的 YAML。**不判断**哪些文件必须改，也不调大模型。
 
