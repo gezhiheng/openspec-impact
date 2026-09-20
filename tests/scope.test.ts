@@ -118,6 +118,15 @@ describe('osi scope against fixture', () => {
     assert.ok(!all.candidates.some((c) => c.path === 'src/extra/notes.txt'))
   })
 
+  it('skips markdown and still searches json', () => {
+    const doc = runScope({ cwd: fixture, change: 'add-renewal-status', includeLow: true })
+    assert.equal(
+      doc.candidates.some((c) => c.path === 'README.md' || c.path.endsWith('.md')),
+      false,
+    )
+    assert.ok(doc.candidates.some((c) => c.path === 'src/config.json'))
+  })
+
   it('caps low at 20', () => {
     const many = Array.from({ length: 25 }, (_, i) => ({
       path: `f${String(i).padStart(2, '0')}.ts`,
@@ -280,6 +289,9 @@ describe('repository search', () => {
     for (const dir of SEARCH_EXCLUDES) {
       assert.ok(g.includes(`!**/${dir}/**`), dir)
     }
+    for (const s of ['.md', '.mdx', '.txt', '.rst', '.adoc']) {
+      assert.ok(g.includes(`!*${s}`), s)
+    }
   })
 
   it('does not emit nested node_modules as candidates', () => {
@@ -307,7 +319,7 @@ describe('repository search', () => {
       join(dir, 'src/pages/TenantList.tsx'),
       'export function TenantList() { return 1 }\n',
     )
-    const hits = searchConcepts(dir, [cited('TenantList'), cited('VTable')])
+    const hits = searchConcepts(dir, [cited('TenantList'), cited('VTable')]).hits
     const grid = hits.find((h) => h.path === 'src/unrelated/Grid.ts')
     assert.ok(grid)
     assert.equal(
@@ -326,12 +338,13 @@ describe('repository search', () => {
         'import { VTable } from "ui"\n',
       )
     }
-    const hits = searchConcepts(dir, [cited('VTable')])
+    const { hits, wide } = searchConcepts(dir, [cited('VTable')])
     const vue = hits.find((h) => h.path === 'src/components/table/VTable.vue')
     assert.ok(vue?.reasons.some((r) => r.type === 'path_match' && r.term === 'VTable'))
     assert.equal(
       hits.some((h) => /^src\/f\d+\.ts$/.test(h.path)),
       false,
     )
+    assert.ok((wide.get('VTable') ?? 0) > WIDE_CONTENT_HITS)
   })
 })

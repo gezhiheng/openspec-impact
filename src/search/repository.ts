@@ -46,6 +46,19 @@ export const CANDIDATE_CAP = 120
 export const WIDE_CONTENT_HITS = 80
 /** ponytail: keeps one nested repo from filling the global cap; raise if a change is truly single-repo. */
 export const PER_REPO_CAP = 15
+const SKIP_SUFFIXES = [
+  '.html',
+  '.htm',
+  '.min.js',
+  '.min.css',
+  '.class',
+  '.jar',
+  '.md',
+  '.mdx',
+  '.txt',
+  '.rst',
+  '.adoc',
+]
 
 function posixRel(from: string, to: string): string {
   return relative(from, to).split(sep).join('/')
@@ -79,14 +92,7 @@ function posixFromRg(line: string): string {
 
 function skipExt(rel: string): boolean {
   const lower = rel.toLowerCase()
-  return (
-    lower.endsWith('.html')
-    || lower.endsWith('.htm')
-    || lower.endsWith('.min.js')
-    || lower.endsWith('.min.css')
-    || lower.endsWith('.class')
-    || lower.endsWith('.jar')
-  )
+  return SKIP_SUFFIXES.some((s) => lower.endsWith(s))
 }
 
 export function rgGlobs(): string[] {
@@ -94,22 +100,10 @@ export function rgGlobs(): string[] {
   for (const dir of SEARCH_EXCLUDES) {
     args.push('--glob', `!**/${dir}/**`)
   }
-  args.push(
-    '--glob',
-    '!*.html',
-    '--glob',
-    '!*.htm',
-    '--glob',
-    '!*.min.js',
-    '--glob',
-    '!*.min.css',
-    '--glob',
-    '!*.class',
-    '--glob',
-    '!*.jar',
-    '--max-filesize',
-    '512K',
-  )
+  for (const s of SKIP_SUFFIXES) {
+    args.push('--glob', `!*${s}`)
+  }
+  args.push('--max-filesize', '512K')
   return args
 }
 
@@ -191,7 +185,12 @@ export type FileHit = {
   roles: TermRole[]
 }
 
-export function searchConcepts(root: string, concepts: HarvestedConcept[]): FileHit[] {
+export type SearchResult = {
+  hits: FileHit[]
+  wide: Map<string, number>
+}
+
+export function searchConcepts(root: string, concepts: HarvestedConcept[]): SearchResult {
   const files = listSourceFiles(root)
   const hits = new Map<string, FileHit>()
 
@@ -259,8 +258,8 @@ export function searchConcepts(root: string, concepts: HarvestedConcept[]): File
     }
   }
 
-  dropWideContent(hits)
-  return [...hits.values()]
+  const wide = dropWideContent(hits)
+  return { hits: [...hits.values()], wide }
 }
 
 function attributeLine(
@@ -345,7 +344,7 @@ function parseRgJson(stdout: string): RgLine[] {
   return out
 }
 
-function dropWideContent(hits: Map<string, FileHit>): void {
+function dropWideContent(hits: Map<string, FileHit>): Map<string, number> {
   const filesByTerm = new Map<string, Set<string>>()
   for (const hit of hits.values()) {
     for (const r of hit.reasons) {
@@ -360,14 +359,14 @@ function dropWideContent(hits: Map<string, FileHit>): void {
       files.add(hit.path)
     }
   }
-  const wide = new Set<string>()
+  const wide = new Map<string, number>()
   for (const [term, files] of filesByTerm) {
     if (files.size > WIDE_CONTENT_HITS) {
-      wide.add(term)
+      wide.set(term, files.size)
     }
   }
   if (wide.size === 0) {
-    return
+    return wide
   }
   for (const [path, hit] of hits) {
     const reasons: Reason[] = []
@@ -387,6 +386,7 @@ function dropWideContent(hits: Map<string, FileHit>): void {
     hit.reasons = reasons
     hit.roles = roles
   }
+  return wide
 }
 
 const CONF_RANK: Record<Confidence, number> = { high: 0, medium: 1, low: 2 }
@@ -434,7 +434,7 @@ function stemOf(name: string): string {
   return i > 0 ? name.slice(0, i) : name
 }
 
-function isNamedTerm(term: string, path: string): boolean {
+export function isNamedTerm(term: string, path: string): boolean {
   const base = path.split('/').at(-1) ?? ''
   const stem = stemOf(base)
   const tbase = term.split('/').at(-1) ?? term

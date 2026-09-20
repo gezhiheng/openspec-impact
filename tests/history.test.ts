@@ -118,6 +118,7 @@ describe('osi history against a disposable git fixture', () => {
     assert.match(yaml, /^change:$/m)
     assert.match(yaml, /^seeds:$/m)
     assert.match(yaml, /^history:$/m)
+    assert.equal(/^refs:/m.test(yaml), false)
     assert.equal(yaml.includes('concepts:'), false)
     assert.equal(yaml.includes('confidence:'), false)
     const r = spawnSync(process.execPath, [cli, 'history', 'add-renewal-status'], {
@@ -128,6 +129,7 @@ describe('osi history against a disposable git fixture', () => {
     assert.match(r.stdout, /^version: 1$/m)
     assert.match(r.stdout, /change\.name|name: "add-renewal-status"/)
     assert.equal(r.stdout.includes('candidates:'), false)
+    assert.equal(/^refs:/m.test(r.stdout), false)
     rmSync(dir, { recursive: true, force: true })
   })
 

@@ -6,14 +6,14 @@ import { runEvidence } from './commands/evidence.js'
 import { runHistory } from './commands/history.js'
 import { INIT_COMMAND_REL, INIT_SKILL_REL, runInit } from './commands/init.js'
 import { runScope } from './commands/scope.js'
-import { toHistoryYaml, toYaml } from './output/yaml.js'
+import { toEvidenceYaml, toHistoryYaml, toYaml } from './output/yaml.js'
 
 export const USAGE = `Usage: osi impact [--no-search] [--include-low] <change-id|path>
        osi scope [--no-search] [--include-low] <change-id|path>
        osi history <change-id|path>
        osi init
 
-impact prints seeds + history YAML for a live OpenSpec change.
+impact prints seeds + refs + history YAML for a live OpenSpec change.
 scope, history, impact, and init are reserved commands.
 `
 
@@ -104,7 +104,7 @@ export function main(argv = process.argv.slice(2), cwd = process.cwd()): number 
       return 0
     }
     process.stdout.write(
-      toHistoryYaml(
+      toEvidenceYaml(
         runEvidence({
           cwd,
           change: parsed.change,

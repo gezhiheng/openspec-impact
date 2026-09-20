@@ -14,6 +14,7 @@ import {
   relatedSource,
   searchConcepts,
   sortCandidates,
+  type FileHit,
 } from '../search/repository.js'
 import { harvestConcepts, publicConcepts, toSearchConcepts } from '../search/terms.js'
 
@@ -24,7 +25,13 @@ export type ScopeOptions = {
   search?: boolean
 }
 
-export function runScope(opts: ScopeOptions): ScopeDocument {
+export type ScopePass = {
+  doc: ScopeDocument
+  hits: FileHit[]
+  wide: Map<string, number>
+}
+
+export function runScopePass(opts: ScopeOptions): ScopePass {
   const projectRoot = findProjectRoot(opts.cwd)
   if (!projectRoot) {
     throw new LocateError('No OpenSpec project found (walked up from cwd looking for openspec/)')
@@ -34,13 +41,15 @@ export function runScope(opts: ScopeOptions): ScopeDocument {
   const harvested = harvestConcepts(documents)
   const search = opts.search !== false
   const searchSet = toSearchConcepts(harvested)
-  const hits = search ? searchConcepts(projectRoot, searchSet) : []
+  const found = search
+    ? searchConcepts(projectRoot, searchSet)
+    : { hits: [], wide: new Map<string, number>() }
 
   const sources: Candidate[] = []
   const tests: TestEntry[] = []
   const testPaths = new Set<string>()
 
-  for (const hit of hits) {
+  for (const hit of found.hits) {
     if (isTestPath(hit.path)) {
       const entry: TestEntry = { path: hit.path }
       const related = relatedSource(projectRoot, hit.path)
@@ -87,10 +96,18 @@ export function runScope(opts: ScopeOptions): ScopeDocument {
   tests.sort((a, b) => a.path.localeCompare(b.path))
 
   return {
-    version: 1,
-    change: { name: located.name, path: located.path },
-    concepts: publicConcepts(harvested),
-    candidates: ranked,
-    tests,
+    doc: {
+      version: 1,
+      change: { name: located.name, path: located.path },
+      concepts: publicConcepts(harvested),
+      candidates: ranked,
+      tests,
+    },
+    hits: found.hits,
+    wide: found.wide,
   }
+}
+
+export function runScope(opts: ScopeOptions): ScopeDocument {
+  return runScopePass(opts).doc
 }

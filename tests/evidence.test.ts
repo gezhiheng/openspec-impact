@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { runEvidence } from '../src/commands/evidence.js'
+import { runEvidence, refsFromHits } from '../src/commands/evidence.js'
 import { LocateError } from '../src/models/evidence.js'
-import { toHistoryYaml } from '../src/output/yaml.js'
+import { toEvidenceYaml } from '../src/output/yaml.js'
 import { harvestConcepts, toSearchConcepts } from '../src/search/terms.js'
 import { readChangeDocuments } from '../src/openspec/parser.js'
+import type { FileHit } from '../src/search/repository.js'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const mini = join(repoRoot, 'tests/fixtures/mini-repo')
@@ -55,12 +56,13 @@ function copyMini(): string {
 
 describe('osi evidence pipeline', () => {
   it('prints history YAML for a change id and fails locate without YAML', () => {
-    const yaml = toHistoryYaml(
+    const yaml = toEvidenceYaml(
       runEvidence({ cwd: mini, change: 'add-renewal-status', includeLow: false }),
     )
     assert.match(yaml, /^version: 1$/m)
     assert.match(yaml, /^change:$/m)
     assert.match(yaml, /^seeds:/m)
+    assert.match(yaml, /^refs:/m)
     assert.match(yaml, /^history:/m)
     assert.match(yaml, /name: "add-renewal-status"/)
     assert.equal(/^scope:$/m.test(yaml), false)
@@ -74,6 +76,7 @@ describe('osi evidence pipeline', () => {
     })
     assert.equal(r.status, 0, r.stderr)
     assert.match(r.stdout, /^seeds:/m)
+    assert.match(r.stdout, /^refs:/m)
     assert.match(r.stdout, /^history:/m)
     assert.equal(/^scope:$/m.test(r.stdout), false)
     assert.equal(/^candidates:$/m.test(r.stdout), false)
@@ -106,6 +109,7 @@ describe('osi evidence pipeline', () => {
     })
     assert.equal(r.status, 0, r.stderr)
     assert.match(r.stdout, /^seeds: \[\]$/m)
+    assert.match(r.stdout, /^refs: \[\]$/m)
     assert.match(r.stdout, /^history: \[\]$/m)
     assert.equal(/^candidates:/m.test(r.stdout), false)
   })
@@ -170,5 +174,87 @@ describe('osi evidence pipeline', () => {
       doc.seeds.some((s) => s.endsWith('LegacyExport.js') || s.endsWith('NoiseUtil.ts')),
       false,
     )
+    const list = doc.refs.find((r) => r.path === 'src/pages/tenant/TenantList.tsx')
+    assert.ok(list)
+    assert.equal(list.term, 'TenantList')
+    assert.equal(list.wide, false)
+    assert.equal(list.sample.includes('src/pages/tenant/TenantList.test.tsx'), false)
+    assert.equal(list.others, list.sample.length)
+    assert.ok(list.sample.includes('src/config.json'))
+  })
+})
+
+describe('refsFromHits', () => {
+  it('counts shared others, sorts sample, and skips tests', () => {
+    const seed = 'src/components/PermButton.vue'
+    const callers = Array.from(
+      { length: 12 },
+      (_, i) => `src/pages/a${String(i).padStart(2, '0')}.vue`,
+    )
+    const hits: FileHit[] = [
+      {
+        path: seed,
+        reasons: [{ type: 'path_match', term: 'PermButton' }],
+        roles: ['strong'],
+      },
+      ...callers.map((path) => ({
+        path,
+        reasons: [{ type: 'symbol_match' as const, term: 'PermButton' }],
+        roles: ['strong' as const],
+      })),
+      {
+        path: 'src/components/PermButton.test.ts',
+        reasons: [{ type: 'symbol_match', term: 'PermButton' }],
+        roles: ['strong'],
+      },
+    ]
+    const refs = refsFromHits([seed], hits, new Map())
+    assert.equal(refs.length, 1)
+    assert.equal(refs[0].term, 'PermButton')
+    assert.equal(refs[0].others, 12)
+    assert.equal(refs[0].wide, false)
+    assert.deepEqual(refs[0].sample, callers.slice(0, 8))
+    assert.equal(refs[0].sample.includes('src/components/PermButton.test.ts'), false)
+  })
+
+  it('marks wide terms and leaves sample empty', () => {
+    const seed = 'src/components/table/VTable.vue'
+    const refs = refsFromHits(
+      [seed],
+      [
+        {
+          path: seed,
+          reasons: [{ type: 'path_match', term: 'VTable' }],
+          roles: ['strong'],
+        },
+      ],
+      new Map([['VTable', 81]]),
+    )
+    assert.equal(refs[0].wide, true)
+    assert.equal(refs[0].others, 81)
+    assert.deepEqual(refs[0].sample, [])
+  })
+
+  it('local named seed has zero others', () => {
+    const seed = 'src/pages/tenant/TenantList.tsx'
+    const refs = refsFromHits(
+      [seed],
+      [
+        {
+          path: seed,
+          reasons: [{ type: 'symbol_match', term: 'TenantList' }],
+          roles: ['strong'],
+        },
+        {
+          path: 'src/pages/tenant/TenantList.test.tsx',
+          reasons: [{ type: 'symbol_match', term: 'TenantList' }],
+          roles: ['strong'],
+        },
+      ],
+      new Map(),
+    )
+    assert.equal(refs[0].others, 0)
+    assert.equal(refs[0].wide, false)
+    assert.deepEqual(refs[0].sample, [])
   })
 })

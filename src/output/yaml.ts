@@ -1,4 +1,11 @@
-import type { Candidate, HistoryDocument, ScopeDocument, TestEntry } from '../models/evidence.js'
+import type {
+  Candidate,
+  EvidenceDocument,
+  HistoryDocument,
+  RefItem,
+  ScopeDocument,
+  TestEntry,
+} from '../models/evidence.js'
 
 function y(value: string): string {
   return JSON.stringify(value)
@@ -52,32 +59,58 @@ function dumpScopeFields(
   return lines
 }
 
+function dumpSeeds(seeds: string[], pad: string): string[] {
+  if (seeds.length === 0) {
+    return [`${pad}seeds: []`]
+  }
+  const lines = [`${pad}seeds:`]
+  for (const s of seeds) {
+    lines.push(`${pad}  - ${y(s)}`)
+  }
+  return lines
+}
+
+function dumpHistoryRows(history: HistoryDocument['history'], pad: string): string[] {
+  if (history.length === 0) {
+    return [`${pad}history: []`]
+  }
+  const lines = [`${pad}history:`]
+  for (const h of history) {
+    lines.push(`${pad}  - path: ${y(h.path)}`)
+    lines.push(`${pad}    via: ${y(h.via)}`)
+    lines.push(`${pad}    commits: ${h.commits}`)
+    lines.push(`${pad}    reason: ${h.reason}`)
+  }
+  return lines
+}
+
+function dumpRefs(refs: RefItem[], pad: string): string[] {
+  if (refs.length === 0) {
+    return [`${pad}refs: []`]
+  }
+  const lines = [`${pad}refs:`]
+  for (const r of refs) {
+    lines.push(`${pad}  - path: ${y(r.path)}`)
+    lines.push(`${pad}    term: ${y(r.term)}`)
+    lines.push(`${pad}    others: ${r.others}`)
+    lines.push(`${pad}    wide: ${r.wide}`)
+    if (r.sample.length === 0) {
+      lines.push(`${pad}    sample: []`)
+    } else {
+      lines.push(`${pad}    sample:`)
+      for (const s of r.sample) {
+        lines.push(`${pad}      - ${y(s)}`)
+      }
+    }
+  }
+  return lines
+}
+
 function dumpHistoryFields(
   doc: { seeds: string[]; history: HistoryDocument['history'] },
   pad: string,
 ): string[] {
-  const lines: string[] = []
-  if (doc.seeds.length === 0) {
-    lines.push(`${pad}seeds: []`)
-  } else {
-    lines.push(`${pad}seeds:`)
-    for (const s of doc.seeds) {
-      lines.push(`${pad}  - ${y(s)}`)
-    }
-  }
-
-  if (doc.history.length === 0) {
-    lines.push(`${pad}history: []`)
-  } else {
-    lines.push(`${pad}history:`)
-    for (const h of doc.history) {
-      lines.push(`${pad}  - path: ${y(h.path)}`)
-      lines.push(`${pad}    via: ${y(h.via)}`)
-      lines.push(`${pad}    commits: ${h.commits}`)
-      lines.push(`${pad}    reason: ${h.reason}`)
-    }
-  }
-  return lines
+  return [...dumpSeeds(doc.seeds, pad), ...dumpHistoryRows(doc.history, pad)]
 }
 
 function changeHeader(change: { name: string; path: string }): string[] {
@@ -90,4 +123,14 @@ export function toYaml(doc: ScopeDocument): string {
 
 export function toHistoryYaml(doc: HistoryDocument): string {
   return [...changeHeader(doc.change), ...dumpHistoryFields(doc, ''), ''].join('\n')
+}
+
+export function toEvidenceYaml(doc: EvidenceDocument): string {
+  return [
+    ...changeHeader(doc.change),
+    ...dumpSeeds(doc.seeds, ''),
+    ...dumpRefs(doc.refs, ''),
+    ...dumpHistoryRows(doc.history, ''),
+    '',
+  ].join('\n')
 }

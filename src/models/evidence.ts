@@ -50,6 +50,18 @@ export type HistoryDocument = {
   history: HistoryEntry[]
 }
 
+export type RefItem = {
+  path: string
+  term: string
+  others: number
+  wide: boolean
+  sample: string[]
+}
+
+export type EvidenceDocument = HistoryDocument & {
+  refs: RefItem[]
+}
+
 export class LocateError extends Error {
   constructor(message: string) {
     super(message)

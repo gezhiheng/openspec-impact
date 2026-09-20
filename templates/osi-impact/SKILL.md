@@ -17,7 +17,7 @@ Write the 影响面 in the user's language. Each finding is one **cause → 表�
 ## Steps
 
 1. **Evidence** — run `osi impact {change}`.
-   Done: stdout is YAML with `version`, `change`, `seeds`, `history`.
+   Done: stdout is YAML with `version`, `change`, `seeds`, `refs`, `history`.
    Non-zero: print stderr and stop.
 
 2. **Change docs** — read `proposal.md`, every file under `specs/`, and `design.md` / `tasks.md` when they exist.
@@ -31,6 +31,8 @@ Write the 影响面 in the user's language. Each finding is one **cause → 表�
 4. **Seeds** — if `seeds` is empty, write the 影响面 from the docs alone, state that `osi` found no named files, and stop.
 
 5. **Seed files** — open every `seeds` path. Judge each `in` / `maybe` / `out` from spec intent, not from filename alone.
+   Call 公共组件/公共方法 only when **both** hold: the seed's `refs` row has `wide` or `others ≥ 2`, **and** the filename/path reads as a shared unit (`src/components/PermButton.vue`, `*Util*`, `*Helper*`), not a page/route (`TenantList.tsx`, `pages/`). Cite one `sample` path. `others` is 出现在, not 引用了.
+   Done: every seed is `in` / `maybe` / `out`; 公共 is decided from refs + filename.
 
 6. **Neighbors** — for each `history` row whose `via` is an `in` seed, open that `path`. Promote to `in` when spec semantics connect; keep `maybe` when it is only co-change; `out` when it hits Out of scope. `commits` is support count, not a must-change score.
 
