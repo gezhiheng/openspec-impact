@@ -4,20 +4,28 @@ import { fileURLToPath } from 'node:url'
 import { LocateError, UsageError } from './models/evidence.js'
 import { runEvidence } from './commands/evidence.js'
 import { runHistory } from './commands/history.js'
+import { INIT_COMMAND_REL, INIT_SKILL_REL, runInit } from './commands/init.js'
 import { runScope } from './commands/scope.js'
 import { toHistoryYaml, toYaml } from './output/yaml.js'
 
 export const USAGE = `Usage: osi impact [--no-search] [--include-low] <change-id|path>
        osi scope [--no-search] [--include-low] <change-id|path>
        osi history <change-id|path>
+       osi init
 
 impact prints seeds + history YAML for a live OpenSpec change.
-scope, history, and impact are reserved commands.
+scope, history, impact, and init are reserved commands.
 `
 
 const LAYERS = new Set(['scope', 'history', 'impact'])
 
 export type ParsedArgs =
+  | {
+      ok: true
+      command: 'init'
+      includeLow: boolean
+      search: boolean
+    }
   | {
       ok: true
       command: 'scope' | 'history' | 'impact'
@@ -47,6 +55,12 @@ export function parseArgv(argv: string[]): ParsedArgs {
   if (!first) {
     return { ok: false, message: USAGE }
   }
+  if (first === 'init') {
+    if (positional.length !== 1) {
+      return { ok: false, message: USAGE }
+    }
+    return { ok: true, command: 'init', includeLow, search }
+  }
   if (LAYERS.has(first)) {
     const change = positional[1]
     if (!change || positional.length > 2) {
@@ -70,6 +84,11 @@ export function main(argv = process.argv.slice(2), cwd = process.cwd()): number 
     return 1
   }
   try {
+    if (parsed.command === 'init') {
+      runInit({ cwd })
+      process.stdout.write(`Wrote ${INIT_SKILL_REL}\nWrote ${INIT_COMMAND_REL}\n`)
+      return 0
+    }
     if (parsed.command === 'history') {
       process.stdout.write(toHistoryYaml(runHistory({ cwd, change: parsed.change })))
       return 0
