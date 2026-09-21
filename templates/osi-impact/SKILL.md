@@ -12,7 +12,7 @@ Usage: `/osi-impact {change}`
 
 This skill fires only when the user types `/osi-impact`.
 
-Write the 影响面 in the user's language. Each finding is one **cause → 表现** (or **cause → 漏改**) sentence a reader who does not know the repo can follow: name the file's role (page, shared component, API, job, mapper), then the user-visible change or the spec gap. Paths are supporting detail, not the deliverable.
+Write the 影响面 in the user's language, chat only. Four blocks, this order: 一句话 → 会变什么 → 可能漏了 → 收尾. A reader who does not know the repo should follow it. Files go in parentheses after the 表现.
 
 ## Steps
 
@@ -45,20 +45,60 @@ Write the 影响面 in the user's language. Each finding is one **cause → 表�
 
 ### Shape
 
-**planned** — "若改" (nothing in this change's diff yet):
+**Visualize**
+```
+┌─────────────────────────────────────────┐
+│     Use ASCII diagrams liberally        │
+├─────────────────────────────────────────┤
+│                                         │
+│      ┌────────┐         ┌────────┐      │
+│      │ State  │────────▶│ State  │      │
+│      │   A    │         │   B    │      │
+│      └────────┘         └────────┘      │
+│                                         │
+│   System diagrams, state machines,      │
+│   data flows, architecture sketches,    │
+│   dependency graphs, comparison tables  │
+│                                         │
+└─────────────────────────────────────────┘
+```
 
-> 若改 `PermButton.vue`（列表行上的公共操作按钮），权限不足时从「点击后提示」变成「按钮不可见」，用户会以为功能没了。
+Draw if present, skip if not. Labels are roles (`列表行按钮`), not class names. 无页面仍四段；跳过状态机；有写路径就画保存流。
+- 状态机（能改 / 不能改，覆盖 vs 锁住）
+- 入口对照（PC/APP × 入口，会变 vs 不动；同一表现一张表 + 一句）
+- 保存/数据流（原 URL → 门禁 → 写哪一行；不是类图）
+
+1. **一句话** — 谁、在哪、会怎样（可带未见漏改 / 可 archive）
+2. **会变什么** — 图在前或之中；每个**不同**用户可见面一句
+3. **可能漏了** — spec 要、这次 diff 没有、用户会受影响；否则「未见漏改」
+4. **收尾** — 故意没动各一句（Out of scope / 样板 / osi 误伤，不解释为什么扫到），然后覆盖 / 能否 archive / 上线注意
+
+Lead with 表现 (file in parens). Merge identical twins and passthrough (API / ReqDTO / VO / BeanCopy). A twin that did not change is 漏改. Roles; class names only to locate a 漏改 (≤3/sentence).
+
+Open: `列表行权限不足时按钮消失…（PermButton.vue）`. Not: `因为已经改了 PermButton / PermCheck / …`.
+
+**planned** (「若改」):
+
+> 若改：物业在 PC 工单列表上会看不见无权限按钮（公共操作按钮 PermButton.vue）。APP 详情不动。实施时打开服务端校验（PermCheck.java）。
+
+**partial / done** (already happened; done + no 漏改 ≈ 8–12 sentences):
+
+> 物业在 PC 工单列表上看不见无权限按钮。服务端校验可能漏改。
 >
-> `PermCheck.java` 在 git 上常与该按钮一起提交；实施时一起打开。
-
-**partial / done** — "因为已经改了" plus 漏改 from spec + co-change vs this-change diff:
-
-> 因为改了 `PermButton.vue`（公共操作按钮；diff 把权限不足从 toast 改成 `v-if` 隐藏），用户以前点击会提示权限不足，现在看不见按钮。
+> ```
+> [可点] ──权限不足──▶ [不可见]
+> ```
 >
-> `PermCheck.java` 在 git 历史上常与 `PermButton.vue` 一起提交，这次只改了按钮。结合 spec「服务端仍校验权限」，需求可能漏改。
-
-Every `in` file gets a 表现 sentence. Every promoted-or-`maybe` neighbor that is absent from this-change diff while spec still needs that behavior gets a 漏改 sentence. Extra files in the diff that are `out` or off the impact set: one sentence that they are outside spec.
-
-**done** closes with coverage: which 表现 are implemented, which 漏改 remain, whether the change is ready to archive.
+> ```
+> PC 列表行  会变
+> APP 详情   不动
+> ```
+>
+> 列表行权限不足时按钮消失，用户会以为功能没了（公共操作按钮 PermButton.vue）。
+>
+> 可能漏了：服务端仍应拦无权限请求，这次 diff 没动（PermCheck.java）。
+>
+> 故意没动：APP 详情底栏不在这次范围。
+> 上线注意：老用户会问「按钮呢」。能否 archive 取决于服务端是否补上。
 
 Need another file: quote the spec sentence that requires it, then open that file. Look up symbols inside already-opened files.
