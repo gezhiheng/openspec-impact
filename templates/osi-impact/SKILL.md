@@ -74,12 +74,13 @@ Draw if present, skip if not. Labels are roles (`列表行按钮`), not class na
 4. **收尾** — 故意没动各一句（Out of scope / 样板 / osi 误伤，不解释为什么扫到），然后覆盖 / 能否 archive / 上线注意
 
 Lead with 表现 (file in parens). Merge identical twins and passthrough (API / ReqDTO / VO / BeanCopy). A twin that did not change is 漏改. Roles; class names only to locate a 漏改 (≤3/sentence).
+这次改到公共组件/方法：会变什么里加一句，其它共用处会同样变（有 `sample` 就点一处；`wide` 则写「多处共用」）。不是文件清单。仅当该公共单元是 `in` 且这次会改/已改。
 
 Open: `列表行权限不足时按钮消失…（PermButton.vue）`. Not: `因为已经改了 PermButton / PermCheck / …`.
 
 **planned** (「若改」):
 
-> 若改：物业在 PC 工单列表上会看不见无权限按钮（公共操作按钮 PermButton.vue）。APP 详情不动。实施时打开服务端校验（PermCheck.java）。
+> 若改：物业在 PC 工单列表上会看不见无权限按钮（公共操作按钮 PermButton.vue）。其它用该按钮的列表同样会变（如 TenantList）。APP 详情不动。实施时打开服务端校验（PermCheck.java）。
 
 **partial / done** (already happened; done + no 漏改 ≈ 8–12 sentences):
 
@@ -94,7 +95,7 @@ Open: `列表行权限不足时按钮消失…（PermButton.vue）`. Not: `因�
 > APP 详情   不动
 > ```
 >
-> 列表行权限不足时按钮消失，用户会以为功能没了（公共操作按钮 PermButton.vue）。
+> 列表行权限不足时按钮消失，用户会以为功能没了（公共操作按钮 PermButton.vue）。其它用该按钮的列表同样会变（如 TenantList）。
 >
 > 可能漏了：服务端仍应拦无权限请求，这次 diff 没动（PermCheck.java）。
 >
