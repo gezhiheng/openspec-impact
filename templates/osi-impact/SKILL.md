@@ -12,7 +12,7 @@ Usage: `/osi-impact {change}`
 
 This skill fires only when the user types `/osi-impact`.
 
-Write the 影响面 in the user's language, chat only. Four blocks, this order: 一句话 → 会变什么 → 可能漏了 → 收尾. A reader who does not know the repo should follow it. Files go in parentheses after the 表现.
+Write the 影响面 in the user's language, chat only. Five headings, every report (planned and empty seeds too): `## 一句话` → `## 影响范围` → `## 可能遗漏` → `## 故意没动` → `## 上线注意`. Files go in parentheses after the 表现.
 
 ## Steps
 
@@ -46,6 +46,7 @@ Write the 影响面 in the user's language, chat only. Four blocks, this order: 
 ### Shape
 
 **Visualize**
+
 ```
 ┌─────────────────────────────────────────┐
 │     Use ASCII diagrams liberally        │
@@ -63,43 +64,64 @@ Write the 影响面 in the user's language, chat only. Four blocks, this order: 
 └─────────────────────────────────────────┘
 ```
 
-Draw if present, skip if not. Labels are roles (`列表行按钮`), not class names. 无页面仍四段；跳过状态机；有写路径就画保存流。
+Draw if present, skip if not, under `## 影响范围`. Labels are roles (`列表行按钮`), not class names. 无页面仍五节标题；跳过状态机；有写路径就画保存流。
+
 - 状态机（能改 / 不能改，覆盖 vs 锁住）
-- 入口对照（PC/APP × 入口，会变 vs 不动；同一表现一张表 + 一句）
+- 入口对照（会变的入口写进下面的 `- ` 列表，不另画表）
 - 保存/数据流（原 URL → 门禁 → 写哪一行；不是类图）
 
-1. **一句话** — 谁、在哪、会怎样（可带未见漏改 / 可 archive）
-2. **会变什么** — 图在前或之中；每个**不同**用户可见面一句
-3. **可能漏了** — spec 要、这次 diff 没有、用户会受影响；否则「未见漏改」
-4. **收尾** — 故意没动各一句（Out of scope / 样板 / osi 误伤，不解释为什么扫到），然后覆盖 / 能否 archive / 上线注意
+`## 一句话` — 谁、在哪、会怎样。planned 以「若改」开头。
 
-Lead with 表现 (file in parens). Merge identical twins and passthrough (API / ReqDTO / VO / BeanCopy). A twin that did not change is 漏改. Roles; class names only to locate a 漏改 (≤3/sentence).
-这次改到公共组件/方法：会变什么里加一句，其它共用处会同样变（有 `sample` 就点一处；`wide` 则写「多处共用」）。不是文件清单。仅当该公共单元是 `in` 且这次会改/已改。
+`## 影响范围` — 图，然后每种不同表现一条 `- `：`- 表现：哪些入口（file）`。表现相同的入口并进同一条，不写「同上」，也不接成一段。相同的 API / ReqDTO / VO / BeanCopy 并进这一条。公共组件/方法且该单元是 `in`、这次会改或已改：这条里点出其它共用处（一个 `sample`；`wide` 写「多处共用」）。标题仍是 `## 影响范围`。
 
-Open: `列表行权限不足时按钮消失…（PermButton.vue）`. Not: `因为已经改了 PermButton / PermCheck / …`.
+`## 可能遗漏` — spec 要、这次 diff 没有、用户会受影响，每条一行。没有则 `未见遗漏`。Step 6 的「可能漏了」写在这里。未改的入口、没改的孪生写在这里（≤3 个类名）。
 
-**planned** (「若改」):
+`## 故意没动` — Out of scope / 样板 / 宽词误伤，各一行，不解释为什么扫到。没有则 `无`。
 
-> 若改：物业在 PC 工单列表上会看不见无权限按钮（公共操作按钮 PermButton.vue）。其它用该按钮的列表同样会变（如 TenantList）。APP 详情不动。实施时打开服务端校验（PermCheck.java）。
+`## 上线注意` — 覆盖、能否 archive、上线，一行。没有则 `无`。
 
-**partial / done** (already happened; done + no 漏改 ≈ 8–12 sentences):
+Not this: `可能漏了：服务端仍应拦无权限请求，这次 diff 没动（PermCheck.java）。`
+Not this: `PC 列表行 会变：按钮消失（PermButton.vue）其它列表 会变：同上（TenantList）。`
 
-> 物业在 PC 工单列表上看不见无权限按钮。服务端校验可能漏改。
->
-> ```
-> [可点] ──权限不足──▶ [不可见]
-> ```
->
-> ```
-> PC 列表行  会变
-> APP 详情   不动
-> ```
->
-> 列表行权限不足时按钮消失，用户会以为功能没了（公共操作按钮 PermButton.vue）。其它用该按钮的列表同样会变（如 TenantList）。
->
-> 可能漏了：服务端仍应拦无权限请求，这次 diff 没动（PermCheck.java）。
->
-> 故意没动：APP 详情底栏不在这次范围。
-> 上线注意：老用户会问「按钮呢」。能否 archive 取决于服务端是否补上。
+**planned**
+
+```text
+## 一句话
+若改：物业在 PC 工单列表上看不见无权限按钮。
+
+## 影响范围
+- 无权限按钮不可见：PC 工单列表和其它用该按钮的列表（如 TenantList；PermButton.vue）
+
+## 可能遗漏
+实施时打开服务端校验（PermCheck.java）。
+
+## 故意没动
+APP 详情不在这次范围。
+
+## 上线注意
+无
+```
+
+**partial / done**
+
+```text
+## 一句话
+物业在 PC 工单列表上看不见无权限按钮。服务端校验可能遗漏。
+
+## 影响范围
+[可点]
+  └──权限不足──▶ [不可见]
+
+- 无权限按钮不可见：PC 工单列表和其它用该按钮的列表（如 TenantList；PermButton.vue）
+
+## 可能遗漏
+服务端仍应拦无权限请求，这次 diff 没动（PermCheck.java）。
+
+## 故意没动
+APP 详情不在这次范围。
+
+## 上线注意
+老用户会问「按钮呢」。能否 archive 取决于服务端是否补上。
+```
 
 Need another file: quote the spec sentence that requires it, then open that file. Look up symbols inside already-opened files.
