@@ -14,6 +14,8 @@ This skill fires only when the user types `/osi-impact`.
 
 Write the 影响面 in the user's language, chat only. Five headings, every report (planned and empty seeds too): `## 一句话` → `## 影响范围` → `## 可能遗漏` → `## 故意没动` → `## 上线注意`. Files go in parentheses after the 表现.
 
+Steps below are the impact workflow only. Locating/reading code (especially steps 5–7) follows workspace rules such as `AGENTS.md`; this skill does not replace them. If those rules do not cover how to locate code, fall back to grep.
+
 ## Steps
 
 1. **Evidence** — run `osi impact {change}`.
