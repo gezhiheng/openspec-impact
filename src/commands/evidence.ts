@@ -1,6 +1,6 @@
 import { findProjectRoot } from '../openspec/parser.js'
 import type { EvidenceDocument, Reason, RefItem } from '../models/evidence.js'
-import { historyFromScope } from './history.js'
+import { scopeEvidence } from './history.js'
 import { runScopePass, type ScopeOptions } from './scope.js'
 import { isNamedTerm, isTestPath, type FileHit } from '../search/repository.js'
 
@@ -60,9 +60,5 @@ export function refsFromHits(
 
 export function runEvidence(opts: ScopeOptions): EvidenceDocument {
   const { doc, hits, wide } = runScopePass(opts)
-  const projectRoot = findProjectRoot(opts.cwd)
-  const hist = projectRoot
-    ? historyFromScope(doc, projectRoot)
-    : { version: 1 as const, change: doc.change, seeds: [], history: [] }
-  return { ...hist, refs: refsFromHits(hist.seeds, hits, wide) }
+  return scopeEvidence(doc, findProjectRoot(opts.cwd), hits, wide)
 }

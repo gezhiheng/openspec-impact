@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { parseArgv } from '../src/cli.js'
+import { runEvidence } from '../src/commands/evidence.js'
 import { historyFromScope, runHistory } from '../src/commands/history.js'
 import { LocateError } from '../src/models/evidence.js'
 import { toHistoryYaml } from '../src/output/yaml.js'
@@ -149,10 +150,7 @@ describe('osi history against a disposable git fixture', () => {
     commitAll(dir, 'wide')
     const doc = runHistory({ cwd: dir, change: 'add-renewal-status' })
     assert.ok(doc.seeds.includes('src/pages/tenant/TenantList.tsx'))
-    assert.equal(
-      doc.history.some((h) => h.path === 'src/lonely.ts'),
-      false,
-    )
+    assert.deepEqual(doc.history, [])
     rmSync(dir, { recursive: true, force: true })
   })
 
@@ -284,6 +282,180 @@ describe('cited history seeds', () => {
     assert.ok(hist.seeds.includes('src/CheckoutReportSourceBranch.java'))
     assert.ok(hist.seeds.includes('src/ReletCheckOutReportIncludeMapper.xml'))
     assert.equal(hist.seeds.includes('src/FooMapper.xml'), false)
+    rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+function cite(dir: string, name: string): void {
+  const p = join(dir, 'openspec/changes/add-renewal-status/proposal.md')
+  const text = readFileSync(p, 'utf8')
+  const needle = '## Impact\n'
+  const i = text.indexOf(needle)
+  assert.ok(i >= 0)
+  writeFileSync(
+    p,
+    `${text.slice(0, i + needle.length)}\n- Touch \`${name}\`.\n${text.slice(i + needle.length)}`,
+  )
+}
+
+function writePair(dir: string, page: string, service: string, n: number): void {
+  mkdirSync(join(dir, 'src/pages', page.split('/')[0] ?? ''), { recursive: true })
+  mkdirSync(join(dir, 'src/services'), { recursive: true })
+  writeFileSync(join(dir, 'src/pages', page), `export function Page() { return ${n} }\n`)
+  writeFileSync(join(dir, 'src/services', service), `export const svc = ${n}\n`)
+}
+
+describe('sibling neighbors', () => {
+  it('keeps qualifying co-change and adds no sibling', () => {
+    const dir = copyMini()
+    gitInit(dir)
+    commitAll(dir, 'base')
+    const via = 'src/pages/house/ReturnVisitDetails.vue'
+    writePair(dir, 'house/ReturnVisitDetails.vue', 'visit.ts', 1)
+    commitAll(dir, 'one')
+    writePair(dir, 'house/ReturnVisitDetails.vue', 'visit.ts', 2)
+    commitAll(dir, 'two')
+    writeFileSync(
+      join(dir, 'src/pages/house/ReturnVisit.vue'),
+      'export function ReturnVisit() { return 1 }\n',
+    )
+    cite(dir, 'ReturnVisitDetails')
+    const doc = runHistory({ cwd: dir, change: 'add-renewal-status' })
+    const row = doc.history.find((h) => h.path === 'src/services/visit.ts')
+    assert.ok(row)
+    assert.equal(row.via, via)
+    assert.equal(row.reason, 'co_change')
+    assert.ok(row.commits >= 2)
+    assert.equal(
+      doc.history.some((h) => h.via === via && h.reason === 'sibling'),
+      false,
+    )
+    assert.equal(
+      doc.history.some((h) => h.path === 'src/pages/house/ReturnVisit.vue'),
+      false,
+    )
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('adds the stem sibling when co-change is empty, and sample only when listed', () => {
+    const dir = copyMini()
+    gitInit(dir)
+    commitAll(dir, 'base')
+    const via = 'src/pages/house/ReturnVisitDetails.vue'
+    mkdirSync(join(dir, 'src/pages/house'), { recursive: true })
+    writeFileSync(join(dir, via), 'export function ReturnVisitDetails() { return 1 }\n')
+    writeFileSync(
+      join(dir, 'src/pages/house/ReturnVisit.vue'),
+      'export function ReturnVisit() { return 1 }\n',
+    )
+    writeFileSync(
+      join(dir, 'src/pages/house/MaintenanceRecord.vue'),
+      'export function MaintenanceRecord() { return 1 }\n',
+    )
+    writeFileSync(
+      join(dir, 'src/pages/house/FooDetail.vue'),
+      'export function FooDetail() { return 1 }\n',
+    )
+    writeFileSync(
+      join(dir, 'src/pages/house/ReturnVisit.test.vue'),
+      'export function ReturnVisit() { return 1 }\n',
+    )
+    cite(dir, 'ReturnVisitDetails')
+    const doc = runHistory({ cwd: dir, change: 'add-renewal-status' })
+    const row = doc.history.find((h) => h.path === 'src/pages/house/ReturnVisit.vue')
+    assert.ok(row)
+    assert.equal(row.via, via)
+    assert.equal(row.reason, 'sibling')
+    assert.equal(row.commits, 0)
+    assert.equal(
+      doc.history.some((h) => h.path === 'src/pages/house/MaintenanceRecord.vue'),
+      false,
+    )
+    assert.equal(
+      doc.history.some((h) => h.path === 'src/pages/house/FooDetail.vue'),
+      false,
+    )
+    assert.equal(
+      doc.history.some((h) => h.path.endsWith('ReturnVisit.test.vue')),
+      false,
+    )
+    writeFileSync(
+      join(dir, 'src/pages/house/MaintenanceRecord.vue'),
+      'export function MaintenanceRecord() { return "ReturnVisitDetails" }\n',
+    )
+    const sampled = runEvidence({ cwd: dir, change: 'add-renewal-status', includeLow: false })
+    const hit = sampled.history.find((h) => h.path === 'src/pages/house/MaintenanceRecord.vue')
+    assert.ok(hit)
+    assert.equal(hit.reason, 'sibling')
+    assert.equal(hit.commits, 0)
+    assert.ok(
+      sampled.refs
+        .find((r) => r.path === via)
+        ?.sample.includes('src/pages/house/MaintenanceRecord.vue'),
+    )
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('skips co-change and siblings when others is at least 30, including a wide term', () => {
+    const dir = copyMini()
+    gitInit(dir)
+    commitAll(dir, 'base')
+    const album = 'src/pages/album/AlbumShotDetails.vue'
+    const wide = 'src/pages/wide/WideShotDetails.vue'
+    writePair(dir, 'album/AlbumShotDetails.vue', 'album.ts', 1)
+    writePair(dir, 'wide/WideShotDetails.vue', 'wide.ts', 1)
+    commitAll(dir, 'one')
+    writePair(dir, 'album/AlbumShotDetails.vue', 'album.ts', 2)
+    writePair(dir, 'wide/WideShotDetails.vue', 'wide.ts', 2)
+    commitAll(dir, 'two')
+    writeFileSync(
+      join(dir, 'src/pages/album/AlbumShot.vue'),
+      'export function AlbumShot() { return 1 }\n',
+    )
+    writeFileSync(
+      join(dir, 'src/pages/wide/WideShot.vue'),
+      'export function WideShot() { return 1 }\n',
+    )
+    mkdirSync(join(dir, 'src/album-noise'), { recursive: true })
+    for (let i = 0; i < 30; i++) {
+      writeFileSync(
+        join(dir, 'src/album-noise', `a${String(i).padStart(2, '0')}.ts`),
+        'export const a = "AlbumShotDetails"\n',
+      )
+    }
+    mkdirSync(join(dir, 'src/wide-noise'), { recursive: true })
+    for (let i = 0; i < 81; i++) {
+      writeFileSync(
+        join(dir, 'src/wide-noise', `w${String(i).padStart(2, '0')}.ts`),
+        'export const w = "WideShotDetails"\n',
+      )
+    }
+    cite(dir, 'AlbumShotDetails')
+    cite(dir, 'WideShotDetails')
+    const albumLoc = enclosingGit(join(dir, album))
+    assert.ok(
+      coChangeNeighbors(albumLoc!, dir, album).some((h) => h.path === 'src/services/album.ts'),
+    )
+    const wideLoc = enclosingGit(join(dir, wide))
+    assert.ok(coChangeNeighbors(wideLoc!, dir, wide).some((h) => h.path === 'src/services/wide.ts'))
+    const ev = runEvidence({ cwd: dir, change: 'add-renewal-status', includeLow: false })
+    const albumRef = ev.refs.find((r) => r.path === album)
+    const wideRef = ev.refs.find((r) => r.path === wide)
+    assert.ok(albumRef)
+    assert.equal(albumRef.wide, false)
+    assert.ok(albumRef.others >= 30)
+    assert.ok(wideRef)
+    assert.equal(wideRef.wide, true)
+    assert.ok(wideRef.others > 80)
+    assert.equal(
+      ev.history.some((h) => h.via === album || h.via === wide),
+      false,
+    )
+    const doc = runHistory({ cwd: dir, change: 'add-renewal-status' })
+    assert.equal(
+      doc.history.some((h) => h.via === album || h.via === wide),
+      false,
+    )
     rmSync(dir, { recursive: true, force: true })
   })
 })

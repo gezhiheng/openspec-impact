@@ -30,11 +30,11 @@ Write the 影响面 in the user's language, chat only. Five headings, every repo
 
 4. **Seeds** — if `seeds` is empty, write the 影响面 from the docs alone, state that `osi` found no named files, and stop.
 
-5. **Seed files** — open every `seeds` path. Judge each `in` / `maybe` / `out` from spec intent, not from filename alone.
+5. **Seed files** — open every `seeds` path whose `refs` row has `wide === false`. A seed with `refs.wide === true` is `out` and is not opened; its closing line is 「宽词误伤」. Judge each opened seed `in` / `maybe` / `out` from spec intent, not from filename alone.
    Call 公共组件/公共方法 only when **both** hold: the seed's `refs` row has `wide` or `others ≥ 2`, **and** the filename/path reads as a shared unit (`src/components/PermButton.vue`, `*Util*`, `*Helper*`), not a page/route (`TenantList.tsx`, `pages/`). Cite one `sample` path. `others` is 出现在, not 引用了.
    Done: every seed is `in` / `maybe` / `out`; 公共 is decided from refs + filename.
 
-6. **Neighbors** — for each `history` row whose `via` is an `in` seed, open that `path`. Promote to `in` when spec semantics connect; keep `maybe` when it is only co-change; `out` when it hits Out of scope. `commits` is support count, not a must-change score.
+6. **Neighbors** — open each `history` row (`co_change` or `sibling`) the same way: when `via` is an `in` seed, open that `path`. Still open a `sibling` when `via` is `out` only because the spec says 不做; if that path is the same operation’s other form or list, put it in 「可能漏了」 and quote that 不做 sentence. Promote to `in` when spec semantics connect; keep `maybe` when it is only co-change or sibling; `out` when it hits Out of scope. `commits` is a support count, not a must-change score; `commits: 0` is not a support count. `refs.sample` stays 出现在; do not open a `sample` path that is absent from `history`.
 
 7. **This-change diff** — when mode is **partial** or **done**, for each git root that contains an `in` path:
    - `git -C <root> diff --name-only HEAD`

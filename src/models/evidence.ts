@@ -40,7 +40,7 @@ export type HistoryEntry = {
   path: string
   via: string
   commits: number
-  reason: 'co_change'
+  reason: 'co_change' | 'sibling'
 }
 
 export type HistoryDocument = {
