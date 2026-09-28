@@ -4,51 +4,65 @@
 
 ## English
 
-Deterministic evidence CLI for a live [OpenSpec](https://github.com/Fission-AI/OpenSpec) change. Package name `openspec-impact`, binary `osi`.
+`openspec-impact` provides the `osi` CLI for gathering deterministic evidence about a live [OpenSpec](https://github.com/Fission-AI/OpenSpec) change. It finds code files that match explicit citations in the change docs and adds limited Git history. It does not decide which files must change, and the CLI does not call an LLM.
 
-If your workflow already involves OpenSpec, this helps you assess a requirement's impact surface during spec-driven development (SDD).
+The optional Cursor skill (`/osi-impact`) reads the evidence and writes a human-readable impact report. For a product-manager-oriented overview, see [the product guide](docs/product-overview.md).
 
-It harvests typed citations from change docs, searches the repo, and (optionally) expands git co-change neighbors. Output is YAML on stdout. It does **not** decide which files must change, and it does not call an LLM.
+### Requirements
 
-A Cursor skill (`/osi-impact`) reads that YAML and writes the impact surface in prose.
+- Node.js 18 or later and Git.
+- `rg` is optional. Without it, `osi` walks the project files and searches their contents directly.
 
-Requires Node 18+ and `git`. Uses `rg` when available, otherwise `git grep`.
+### Quick start
 
-### Install
+From a checkout of this repository, build and link the CLI:
 
 ```bash
 npm install
 npm run build
-npm link          # puts `osi` on PATH
+npm link
 ```
 
-In the project that contains `openspec/changes/`:
+In the project that contains the live OpenSpec change, run:
 
 ```bash
-osi init          # writes .cursor/skills/osi-impact/ and .cursor/commands/osi-impact.md
+osi impact add-renewal-status
 ```
 
-### Usage
+To get a prose report in Cursor, install the skill and command in that project, then invoke the slash command:
 
+```bash
+osi init
+# In Cursor:
+/osi-impact add-renewal-status
 ```
+
+`osi init` creates or updates `.cursor/skills/osi-impact/SKILL.md` and `.cursor/commands/osi-impact.md` in the nearest OpenSpec project root.
+
+### Commands
+
+```text
 osi impact [--no-search] [--include-low] <change-id|path>
 osi scope  [--no-search] [--include-low] <change-id|path>
 osi history <change-id|path>
 osi init
 ```
 
-`<change>` is a live change id (`add-renewal-status`) or a path (`openspec/changes/add-renewal-status`). Archived changes are not resolved by id.
+`<change>` is a live change id, such as `add-renewal-status`, or a path such as `openspec/changes/add-renewal-status`. Archived changes are not resolved by id.
 
-| Command | What you get |
+| Command | Output |
 |---|---|
-| `osi impact` | Evidence pipeline: named seeds + co-change history (this is the default Skill input) |
-| `osi scope` | Lexical candidates: `concepts`, `candidates`, `tests` |
-| `osi history` | Same YAML shape as `impact` (seeds + history only) |
-| `osi init` | Installs the Cursor skill and slash command into the OpenSpec project root |
+| `osi impact` | Main evidence pipeline: named seeds, citation references, and history. |
+| `osi scope` | `concepts`, ranked `candidates`, and related `tests`. |
+| `osi history` | `seeds` and `history`, with the same history rules as `impact`; no `refs` key. |
+| `osi init` | Installs the Cursor skill and slash command in the OpenSpec project. |
 
-`--no-search` harvests concepts but skips the repository scan (`seeds` / `candidates` empty). `--include-low` adds up to 20 low-confidence scope hits (default omits them).
+- `--no-search` keeps harvested concepts but skips the repository scan. In `scope`, `candidates` and `tests` are empty; in `impact`, `seeds`, `refs`, and `history` are empty.
+- `--include-low` adds up to 20 low-confidence candidates to `scope`. The flag is accepted by `impact`, but does not add low-confidence rows to its output; `impact` reports named high-confidence seeds.
 
-### `osi impact` YAML
+### `osi impact` output
+
+The successful output is one YAML document with `version`, `change`, `seeds`, `refs`, and `history` at the top level:
 
 ```yaml
 version: 1
@@ -57,6 +71,12 @@ change:
   path: "openspec/changes/add-renewal-status"
 seeds:
   - "src/pages/tenant/TenantList.tsx"
+refs:
+  - path: "src/pages/tenant/TenantList.tsx"
+    term: "TenantList"
+    others: 0
+    wide: false
+    sample: []
 history:
   - path: "src/services/tenant.ts"
     via: "src/pages/tenant/TenantList.tsx"
@@ -64,9 +84,15 @@ history:
     reason: co_change
 ```
 
-`seeds` are named high hits (filename / stem matches a citation). `history` rows are same-repo files that co-occurred with a seed in ≥2 non-merge commits (last 18 months, commits touching >30 files ignored). No `confidence` on history rows.
+- `seeds` are named, high-confidence files that match a citation by filename or symbol. They are starting points, not a complete change list.
+- Each `refs` row describes the seed's citation term and how often it appears in other source files. `others` counts distinct non-test files with a content or symbol match; it does not measure dependency. `sample` lists up to 8 example paths. `wide: true` means the term matched content or symbols in more than 80 files; `sample` is then empty.
+- `history` may contain `co_change` or `sibling` rows. A `co_change` neighbor appeared with the seed in at least 2 qualifying commits in the same Git repository during the last 18 months. Merge commits and commits touching more than 30 files are ignored; each seed contributes at most 10 co-change rows.
+- If a seed has an enclosing Git root, no qualifying co-change rows, and `refs.others` is below 30, `history` may include up to 4 same-directory siblings selected by a limited filename rule or by `refs.sample`. A sibling has `reason: sibling` and `commits: 0`; that value is not historical support. When `refs.others` is 30 or more, neither co-change nor sibling expansion runs for that seed. A seed without a Git root has no history rows.
+- The complete `history` list is capped at 50 rows. History rows have no `confidence` score.
 
-### `osi scope` YAML
+### `osi scope` output
+
+`scope` returns `concepts`, `candidates`, and `tests`:
 
 ```yaml
 version: 1
@@ -86,72 +112,130 @@ tests:
     related_to: "src/pages/tenant/TenantList.tsx"
 ```
 
-Search terms are typed citations only (paths, PascalCase symbols, `METHOD /path`, `SCREAMING_SNAKE` codes). Bag-of-words from headings or kebab change ids is not queried. Citations under Out of scope / 不在范围 are dropped.
+Search uses explicit typed citations from the change docs: paths, code symbols, HTTP method/path pairs, and permission or configuration codes. It does not turn headings or ordinary prose into search terms, and it drops citations under Out of scope / 不在范围. Candidate confidence is a lexical match category, not a probability that the file must change.
 
-### Develop
+### Development
 
 ```bash
-npm test          # tsc + node:test
-npm run fmt       # oxfmt + oxlint
+npm test
+npm run fmt
 ```
-
----
 
 ## 中文
 
-面向一份进行中的 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 变更的**确定性证据** CLI。包名 `openspec-impact`，命令 `osi`。
+`openspec-impact` 提供命令行工具 `osi`，为一份进行中的 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 变更收集确定性证据。它根据变更文档里的明确引用寻找代码文件，再补充有限的 Git 历史线索。它不会决定哪些文件必须修改，CLI 本身也不调用大模型。
 
-如果你的工作流中涉及了 OpenSpec，这可以帮助你在 SDD 开发中用来评估需求影响范围。
+可选的 Cursor 技能 `/osi-impact` 会读取这些证据并生成易读的影响面报告。面向产品经理的介绍见[产品说明](docs/product-overview.md)。
 
-它从变更文档里抽出带类型的引用（路径、符号、API、权限码），在仓库里搜文件，再用 git 同改记录补邻居。结果打到 stdout 的 YAML。**不判断**哪些文件必须改，也不调大模型。
+### 环境要求
 
-Cursor skill（`/osi-impact`）读这份 YAML，用人话写影响面。
+- Node.js 18 或更高版本，以及 Git。
+- `rg` 是可选的。没有 `rg` 时，`osi` 会遍历项目文件并直接搜索文件内容。
 
-需要 Node 18+ 和 `git`。优先用 `rg`，没有则退到 `git grep`。
+### 快速开始
 
-### 安装
+在本仓库的 checkout 中构建并链接 CLI：
 
 ```bash
 npm install
 npm run build
-npm link          # 把 `osi` 挂到 PATH
+npm link
 ```
 
-在含有 `openspec/changes/` 的项目里：
+在包含进行中 OpenSpec 变更的目标项目里运行：
 
 ```bash
-osi init          # 写入 .cursor/skills/osi-impact/ 和 .cursor/commands/osi-impact.md
+osi impact add-renewal-status
 ```
 
-### 用法
+如需在 Cursor 中生成自然语言报告，先在目标项目安装技能和斜杠命令，再调用：
 
+```bash
+osi init
+# 在 Cursor 中：
+/osi-impact add-renewal-status
 ```
+
+`osi init` 会在最近的 OpenSpec 项目根目录创建或更新 `.cursor/skills/osi-impact/SKILL.md` 和 `.cursor/commands/osi-impact.md`。
+
+### 命令
+
+```text
 osi impact [--no-search] [--include-low] <change-id|path>
 osi scope  [--no-search] [--include-low] <change-id|path>
 osi history <change-id|path>
 osi init
 ```
 
-`<change>` 是进行中的变更 id（`add-renewal-status`）或路径（`openspec/changes/add-renewal-status`）。归档变更不能只靠 id 解析。
+`<change>` 可以是进行中的变更 id（如 `add-renewal-status`），也可以是路径（如 `openspec/changes/add-renewal-status`）。归档变更不能只靠 id 解析。
 
 | 命令 | 输出 |
 |---|---|
-| `osi impact` | 证据管线：具名种子 + 同改历史（Skill 默认输入） |
-| `osi scope` | 词法候选：`concepts`、`candidates`、`tests` |
-| `osi history` | 与 `impact` 同形（只有 seeds + history） |
-| `osi init` | 把 Cursor skill 和斜杠命令装到 OpenSpec 项目根 |
+| `osi impact` | 默认证据管线：具名种子、引用情况和历史线索。 |
+| `osi scope` | `concepts`、排序后的 `candidates` 和相关 `tests`。 |
+| `osi history` | `seeds` 和 `history`，使用与 `impact` 相同的历史规则，但不输出 `refs`。 |
+| `osi init` | 在 OpenSpec 项目安装 Cursor 技能和斜杠命令。 |
 
-`--no-search` 只抽概念、不扫仓库。`--include-low` 最多再带 20 条低置信候选（默认丢掉）。
+- `--no-search` 保留从变更文档抽出的概念，但跳过仓库搜索。`scope` 的 `candidates` 和 `tests` 会为空；`impact` 的 `seeds`、`refs` 和 `history` 会为空。
+- `--include-low` 让 `scope` 额外输出最多 20 个低置信度候选。`impact` 虽接受此参数，但不会因此多输出低置信度项；它只报告具名高置信度种子。
 
-### 证据长什么样
+### `osi impact` 输出
 
-`osi impact` 给出 `seeds`（文件名/词干命中了文档引用的高置信文件）和 `history`（与种子在同一 git 仓库、近 18 个月、非 merge、单次提交不超过 30 个文件、共同出现 ≥2 次的邻居）。history 行没有 `confidence`。
+成功时输出一份 YAML，顶层字段为 `version`、`change`、`seeds`、`refs` 和 `history`：
 
-`osi scope` 给出 `concepts` / `candidates` / `tests`。搜索词只来自带类型的引用，不用标题或 kebab 变更名做词袋。Out of scope / 不在范围 里的引用不会进搜索。
+```yaml
+version: 1
+change:
+  name: "add-renewal-status"
+  path: "openspec/changes/add-renewal-status"
+seeds:
+  - "src/pages/tenant/TenantList.tsx"
+refs:
+  - path: "src/pages/tenant/TenantList.tsx"
+    term: "TenantList"
+    others: 0
+    wide: false
+    sample: []
+history:
+  - path: "src/services/tenant.ts"
+    via: "src/pages/tenant/TenantList.tsx"
+    commits: 2
+    reason: co_change
+```
+
+- `seeds` 是文件名或符号与文档引用对应、且达到高置信度的文件。它们是核对起点，不是完整改动清单。
+- 每条 `refs` 说明 seed 对应的引用词及该词在其它源码文件中的出现情况。`others` 统计包含该词的不同非测试文件数，不代表依赖数量。`sample` 最多列 8 个示例路径。若内容或符号命中超过 80 个文件，`wide` 为 `true`，此时 `sample` 为空。
+- `history` 可能包含 `co_change` 或 `sibling`。`co_change` 表示同一 Git 仓库内的文件在过去 18 个月里至少 2 次与 seed 出现在同一条符合条件的提交中；合并提交和一次改动超过 30 个文件的提交会被忽略。每个 seed 最多输出 10 条同改记录。
+- 如果 seed 有所属的 Git 根目录、没有符合条件的同改记录，且 `refs.others` 小于 30，`history` 可能补充最多 4 个同目录文件：按有限的文件名规则匹配，或来自 `refs.sample`。这类行的 `reason` 是 `sibling`，`commits` 为 0，不代表有历史同改支持。`refs.others` 达到 30 时，该 seed 不做同改或兄弟文件扩展；没有 Git 根目录的 seed 不会有 history 行。
+- `history` 总计最多 50 条；历史行没有 `confidence` 分数。
+
+### `osi scope` 输出
+
+`scope` 返回 `concepts`、`candidates` 和 `tests`：
+
+```yaml
+version: 1
+change:
+  name: "add-renewal-status"
+  path: "openspec/changes/add-renewal-status"
+concepts:
+  - text: "TenantList"
+candidates:
+  - path: "src/pages/tenant/TenantList.tsx"
+    confidence: high
+    reasons:
+      - type: symbol_match
+        term: "TenantList"
+tests:
+  - path: "src/pages/tenant/TenantList.test.tsx"
+    related_to: "src/pages/tenant/TenantList.tsx"
+```
+
+搜索词只来自变更文档中明确标记的类型化引用：文件路径、代码符号、HTTP 方法与路径、权限或配置码。标题和普通描述不会被拆成搜索词；Out of scope / 不在范围里的引用会被排除。候选的置信度表示词法匹配档位，不代表文件必须修改的概率。
 
 ### 开发
 
 ```bash
-npm test          # tsc + node:test
-npm run fmt       # oxfmt + oxlint
+npm test
+npm run fmt
 ```
