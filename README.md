@@ -15,29 +15,41 @@ The optional Cursor skill (`/osi-impact`) reads the evidence and writes a human-
 
 ### Quick start
 
-From a checkout of this repository, build and link the CLI:
+Install the latest release globally:
 
 ```bash
-npm install
-npm run build
-npm link
+npm install -g openspec-impact@latest
 ```
 
-In the project that contains the live OpenSpec change, run:
+In the project that contains the live OpenSpec change, install or refresh the Cursor skill and command:
+
+```bash
+cd your-openspec-project
+osi init
+```
+
+Then invoke the slash command in Cursor:
+
+```text
+/osi-impact add-renewal-status
+```
+
+To get YAML evidence directly in a terminal, run:
 
 ```bash
 osi impact add-renewal-status
 ```
 
-To get a prose report in Cursor, install the skill and command in that project, then invoke the slash command:
+`osi init` creates or updates `.cursor/skills/osi-impact/SKILL.md` and `.cursor/commands/osi-impact.md` in the nearest OpenSpec project root.
+
+After upgrading the global package, run `osi init` again to refresh and overwrite these project files with the templates from the new version:
 
 ```bash
+npm install -g openspec-impact@latest
 osi init
-# In Cursor:
-/osi-impact add-renewal-status
 ```
 
-`osi init` creates or updates `.cursor/skills/osi-impact/SKILL.md` and `.cursor/commands/osi-impact.md` in the nearest OpenSpec project root.
+If the `osi` command is not found after installation, add npm's global executable directory to your `PATH`. On Unix-like systems, this is the `bin` directory under `npm prefix -g`; on Windows, it is the directory returned by `npm prefix -g`.
 
 ### Commands
 
@@ -50,12 +62,12 @@ osi init
 
 `<change>` is a live change id, such as `add-renewal-status`, or a path such as `openspec/changes/add-renewal-status`. Archived changes are not resolved by id.
 
-| Command | Output |
-|---|---|
-| `osi impact` | Main evidence pipeline: named seeds, citation references, and history. |
-| `osi scope` | `concepts`, ranked `candidates`, and related `tests`. |
+| Command       | Output                                                                         |
+| ------------- | ------------------------------------------------------------------------------ |
+| `osi impact`  | Main evidence pipeline: named seeds, citation references, and history.         |
+| `osi scope`   | `concepts`, ranked `candidates`, and related `tests`.                          |
 | `osi history` | `seeds` and `history`, with the same history rules as `impact`; no `refs` key. |
-| `osi init` | Installs the Cursor skill and slash command in the OpenSpec project. |
+| `osi init`    | Installs the Cursor skill and slash command in the OpenSpec project.           |
 
 - `--no-search` keeps harvested concepts but skips the repository scan. In `scope`, `candidates` and `tests` are empty; in `impact`, `seeds`, `refs`, and `history` are empty.
 - `--include-low` adds up to 20 low-confidence candidates to `scope`. The flag is accepted by `impact`, but does not add low-confidence rows to its output; `impact` reports named high-confidence seeds.
@@ -67,19 +79,19 @@ The successful output is one YAML document with `version`, `change`, `seeds`, `r
 ```yaml
 version: 1
 change:
-  name: "add-renewal-status"
-  path: "openspec/changes/add-renewal-status"
+  name: 'add-renewal-status'
+  path: 'openspec/changes/add-renewal-status'
 seeds:
-  - "src/pages/tenant/TenantList.tsx"
+  - 'src/pages/tenant/TenantList.tsx'
 refs:
-  - path: "src/pages/tenant/TenantList.tsx"
-    term: "TenantList"
+  - path: 'src/pages/tenant/TenantList.tsx'
+    term: 'TenantList'
     others: 0
     wide: false
     sample: []
 history:
-  - path: "src/services/tenant.ts"
-    via: "src/pages/tenant/TenantList.tsx"
+  - path: 'src/services/tenant.ts'
+    via: 'src/pages/tenant/TenantList.tsx'
     commits: 2
     reason: co_change
 ```
@@ -97,24 +109,34 @@ history:
 ```yaml
 version: 1
 change:
-  name: "add-renewal-status"
-  path: "openspec/changes/add-renewal-status"
+  name: 'add-renewal-status'
+  path: 'openspec/changes/add-renewal-status'
 concepts:
-  - text: "TenantList"
+  - text: 'TenantList'
 candidates:
-  - path: "src/pages/tenant/TenantList.tsx"
+  - path: 'src/pages/tenant/TenantList.tsx'
     confidence: high
     reasons:
       - type: symbol_match
-        term: "TenantList"
+        term: 'TenantList'
 tests:
-  - path: "src/pages/tenant/TenantList.test.tsx"
-    related_to: "src/pages/tenant/TenantList.tsx"
+  - path: 'src/pages/tenant/TenantList.test.tsx'
+    related_to: 'src/pages/tenant/TenantList.tsx'
 ```
 
 Search uses explicit typed citations from the change docs: paths, code symbols, HTTP method/path pairs, and permission or configuration codes. It does not turn headings or ordinary prose into search terms, and it drops citations under Out of scope / 不在范围. Candidate confidence is a lexical match category, not a probability that the file must change.
 
-### Development
+### Contributor setup
+
+From a checkout of this repository, build and link the CLI:
+
+```bash
+npm install
+npm run build
+npm link
+```
+
+Run the checks from the checkout:
 
 ```bash
 npm test
@@ -134,29 +156,41 @@ npm run fmt
 
 ### 快速开始
 
-在本仓库的 checkout 中构建并链接 CLI：
+全局安装最新版本：
 
 ```bash
-npm install
-npm run build
-npm link
+npm install -g openspec-impact@latest
 ```
 
-在包含进行中 OpenSpec 变更的目标项目里运行：
+在包含进行中 OpenSpec 变更的目标项目里，安装或刷新 Cursor 技能和斜杠命令：
+
+```bash
+cd your-openspec-project
+osi init
+```
+
+然后在 Cursor 中调用斜杠命令：
+
+```text
+/osi-impact add-renewal-status
+```
+
+如需直接在终端获取 YAML 证据，运行：
 
 ```bash
 osi impact add-renewal-status
 ```
 
-如需在 Cursor 中生成自然语言报告，先在目标项目安装技能和斜杠命令，再调用：
+`osi init` 会在最近的 OpenSpec 项目根目录创建或更新 `.cursor/skills/osi-impact/SKILL.md` 和 `.cursor/commands/osi-impact.md`。
+
+升级全局安装的包后，再次运行 `osi init`，用新版本模板刷新并覆盖项目中的这两个文件：
 
 ```bash
+npm install -g openspec-impact@latest
 osi init
-# 在 Cursor 中：
-/osi-impact add-renewal-status
 ```
 
-`osi init` 会在最近的 OpenSpec 项目根目录创建或更新 `.cursor/skills/osi-impact/SKILL.md` 和 `.cursor/commands/osi-impact.md`。
+如果安装后找不到 `osi` 命令，请将 npm 的全局可执行文件目录加入 `PATH`。在类 Unix 系统中，它是 `npm prefix -g` 返回目录下的 `bin`；在 Windows 中则是 `npm prefix -g` 返回的目录。
 
 ### 命令
 
@@ -169,12 +203,12 @@ osi init
 
 `<change>` 可以是进行中的变更 id（如 `add-renewal-status`），也可以是路径（如 `openspec/changes/add-renewal-status`）。归档变更不能只靠 id 解析。
 
-| 命令 | 输出 |
-|---|---|
-| `osi impact` | 默认证据管线：具名种子、引用情况和历史线索。 |
-| `osi scope` | `concepts`、排序后的 `candidates` 和相关 `tests`。 |
+| 命令          | 输出                                                                    |
+| ------------- | ----------------------------------------------------------------------- |
+| `osi impact`  | 默认证据管线：具名种子、引用情况和历史线索。                            |
+| `osi scope`   | `concepts`、排序后的 `candidates` 和相关 `tests`。                      |
 | `osi history` | `seeds` 和 `history`，使用与 `impact` 相同的历史规则，但不输出 `refs`。 |
-| `osi init` | 在 OpenSpec 项目安装 Cursor 技能和斜杠命令。 |
+| `osi init`    | 在 OpenSpec 项目安装 Cursor 技能和斜杠命令。                            |
 
 - `--no-search` 保留从变更文档抽出的概念，但跳过仓库搜索。`scope` 的 `candidates` 和 `tests` 会为空；`impact` 的 `seeds`、`refs` 和 `history` 会为空。
 - `--include-low` 让 `scope` 额外输出最多 20 个低置信度候选。`impact` 虽接受此参数，但不会因此多输出低置信度项；它只报告具名高置信度种子。
@@ -186,19 +220,19 @@ osi init
 ```yaml
 version: 1
 change:
-  name: "add-renewal-status"
-  path: "openspec/changes/add-renewal-status"
+  name: 'add-renewal-status'
+  path: 'openspec/changes/add-renewal-status'
 seeds:
-  - "src/pages/tenant/TenantList.tsx"
+  - 'src/pages/tenant/TenantList.tsx'
 refs:
-  - path: "src/pages/tenant/TenantList.tsx"
-    term: "TenantList"
+  - path: 'src/pages/tenant/TenantList.tsx'
+    term: 'TenantList'
     others: 0
     wide: false
     sample: []
 history:
-  - path: "src/services/tenant.ts"
-    via: "src/pages/tenant/TenantList.tsx"
+  - path: 'src/services/tenant.ts'
+    via: 'src/pages/tenant/TenantList.tsx'
     commits: 2
     reason: co_change
 ```
@@ -216,24 +250,34 @@ history:
 ```yaml
 version: 1
 change:
-  name: "add-renewal-status"
-  path: "openspec/changes/add-renewal-status"
+  name: 'add-renewal-status'
+  path: 'openspec/changes/add-renewal-status'
 concepts:
-  - text: "TenantList"
+  - text: 'TenantList'
 candidates:
-  - path: "src/pages/tenant/TenantList.tsx"
+  - path: 'src/pages/tenant/TenantList.tsx'
     confidence: high
     reasons:
       - type: symbol_match
-        term: "TenantList"
+        term: 'TenantList'
 tests:
-  - path: "src/pages/tenant/TenantList.test.tsx"
-    related_to: "src/pages/tenant/TenantList.tsx"
+  - path: 'src/pages/tenant/TenantList.test.tsx'
+    related_to: 'src/pages/tenant/TenantList.tsx'
 ```
 
 搜索词只来自变更文档中明确标记的类型化引用：文件路径、代码符号、HTTP 方法与路径、权限或配置码。标题和普通描述不会被拆成搜索词；Out of scope / 不在范围里的引用会被排除。候选的置信度表示词法匹配档位，不代表文件必须修改的概率。
 
-### 开发
+### 贡献者设置
+
+在本仓库的 checkout 中构建并链接 CLI：
+
+```bash
+npm install
+npm run build
+npm link
+```
+
+在 checkout 中运行检查：
 
 ```bash
 npm test
