@@ -1,10 +1,4 @@
-# osi-init Specification
-
-## Purpose
-
-Lets an operator run `osi init` in a project to install the versioned osi-impact Cursor skill and slash command so `/osi-impact {spec name}` works.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Init command installs Cursor skill and command
 
@@ -55,22 +49,6 @@ On success, `osi init` MUST exit 0, MUST NOT print a YAML document on stdout, an
 - **THEN** `.cursor/skills/osi-impact/SKILL.md` exists and contains `name: osi-impact`
 - **AND** `.cursor/commands/osi-impact.md` exists
 
-### Requirement: Init locates the install root
-
-The CLI MUST walk upward from the current working directory to find an OpenSpec project root (a directory that contains `openspec/`), using the same nearest-root rule as `osi scope`. If found, that directory is the install root for every selected integration. If none is found, the current working directory is the install root.
-
-#### Scenario: Subdirectory still installs selected integrations at the OpenSpec root
-
-- **WHEN** a project contains `openspec/` at its root
-- **AND** the operator runs `osi init` from a subdirectory and selects an integration
-- **THEN** that integration's files are written under the OpenSpec project root, not under the subdirectory
-
-#### Scenario: No OpenSpec root uses cwd
-
-- **WHEN** no ancestor directory contains `openspec/`
-- **AND** the operator runs `osi init` and selects an integration
-- **THEN** that integration's files are written under the current working directory
-
 ### Requirement: Init overwrites existing install files
 
 For each selected integration, if a destination file already exists, the CLI MUST replace its contents with the packaged template. Missing selected files MUST still be created. Files belonging to unselected integrations MUST remain unchanged. The CLI MUST NOT delete unrelated files under agent configuration directories.
@@ -87,3 +65,19 @@ For each selected integration, if a destination file already exists, the CLI MUS
 - **WHEN** an integration has an existing osi-impact file but is not selected
 - **AND** the operator completes `osi init` for other agents
 - **THEN** the unselected file remains unchanged
+
+### Requirement: Init locates the install root
+
+The CLI MUST walk upward from the current working directory to find an OpenSpec project root (a directory that contains `openspec/`), using the same nearest-root rule as `osi scope`. If found, that directory is the install root for every selected integration. If none is found, the current working directory is the install root.
+
+#### Scenario: Subdirectory still installs selected integrations at the OpenSpec root
+
+- **WHEN** a project contains `openspec/` at its root
+- **AND** the operator runs `osi init` from a subdirectory and selects an integration
+- **THEN** that integration's files are written under the OpenSpec project root, not under the subdirectory
+
+#### Scenario: No OpenSpec root uses cwd
+
+- **WHEN** no ancestor directory contains `openspec/`
+- **AND** the operator runs `osi init` and selects an integration
+- **THEN** that integration's files are written under the current working directory

@@ -15,12 +15,12 @@ A behavior change is an OpenSpec **delta** under `openspec/changes/<id>/`. Caps 
 
 ## Layers
 
-| Command | Module | Job |
-|---|---|---|
-| `scope` | `src/commands/scope.ts` | typed citations → lexical candidates |
-| `history` | `src/commands/history.ts` | named highs → same-repo co-change |
-| `impact` | `src/commands/evidence.ts` | one `runScope`, then `historyFromScope` |
-| `init` | `src/commands/init.ts` | copy `templates/` into the target project |
+| Command   | Module                     | Job                                       |
+| --------- | -------------------------- | ----------------------------------------- |
+| `scope`   | `src/commands/scope.ts`    | typed citations → lexical candidates      |
+| `history` | `src/commands/history.ts`  | named highs → same-repo co-change         |
+| `impact`  | `src/commands/evidence.ts` | one `runScope`, then `historyFromScope`   |
+| `init`    | `src/commands/init.ts`     | copy `templates/` into the target project |
 
 History does not feed scope `confidence`. Pipeline does not search twice.
 
@@ -32,4 +32,4 @@ Argv is hand-parsed in `src/cli.ts`. YAML is hand-written in `src/output/yaml.ts
 
 ## Stack
 
-Node stdlib, `git`, `rg` (fallback `git grep`). Imports use `.js` specifiers (`module: Node16`). The Cursor skill source of truth is `templates/osi-impact/SKILL.md`; `osi init` copies it.
+Node stdlib, `git`, `rg` (fallback `git grep`). Imports use `.js` specifiers (`module: Node16`). The skill body source of truth is `templates/osi-impact/SKILL.md`. `osi init` installs it for the selected agents; the Cursor copy keeps that file's frontmatter.

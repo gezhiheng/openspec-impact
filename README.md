@@ -6,7 +6,7 @@
 
 `openspec-impact` provides the `osi` CLI for gathering deterministic evidence about a live [OpenSpec](https://github.com/Fission-AI/OpenSpec) change. It finds code files that match explicit citations in the change docs and adds limited Git history. It does not decide which files must change, and the CLI does not call an LLM.
 
-The optional Cursor skill (`/osi-impact`) reads the evidence and writes a human-readable impact report. For a product-manager-oriented overview, see [the product guide](docs/product-overview.md).
+An optional agent skill (`/osi-impact`) reads the evidence and writes a human-readable impact report. For a product-manager-oriented overview, see [the product guide](docs/product-overview.md).
 
 ### Requirements
 
@@ -21,18 +21,24 @@ Install the latest release globally:
 npm install -g openspec-impact@latest
 ```
 
-In the project that contains the live OpenSpec change, install or refresh the Cursor skill and command:
+In the project that contains the live OpenSpec change, install the impact skill for the agents you use:
 
 ```bash
 cd your-openspec-project
 osi init
 ```
 
-Then invoke the slash command in Cursor:
+`osi init` checks the nearest OpenSpec project root for Cursor, Claude Code, Codex, Windsurf, Cline, Roo Code, OpenCode, GitHub Copilot, and Pi configuration. In a terminal it prints the paths it found, lists every supported agent, and marks the detected ones. Move with the up and down keys, toggle a row with space, and press enter to install. When nothing is detected, nothing is marked, and you can still choose. Only the agents you confirm are written; other agent files stay as they are.
 
-```text
-/osi-impact add-renewal-status
+In a script, pass the same ids and skip the prompt:
+
+```bash
+osi init --agent cursor,codex
 ```
+
+Agent ids: `cursor`, `claude`, `codex`, `windsurf`, `cline`, `roo`, `opencode`, `github-copilot`, `pi`. If stdin is not a terminal and `--agent` is missing, `osi init` exits with an error and writes nothing.
+
+Invoke the installed skill with a live change id. Cursor, Claude Code, Windsurf, Cline, Roo Code, OpenCode, GitHub Copilot, and Pi use `/osi-impact add-renewal-status`. Codex uses `$osi-impact`.
 
 To get YAML evidence directly in a terminal, run:
 
@@ -40,13 +46,11 @@ To get YAML evidence directly in a terminal, run:
 osi impact add-renewal-status
 ```
 
-`osi init` creates or updates `.cursor/skills/osi-impact/SKILL.md` and `.cursor/commands/osi-impact.md` in the nearest OpenSpec project root.
-
-After upgrading the global package, run `osi init` again to refresh and overwrite these project files with the templates from the new version:
+After upgrading the global package, run `osi init` again, or pass `--agent`, to refresh the selected files:
 
 ```bash
 npm install -g openspec-impact@latest
-osi init
+osi init --agent cursor
 ```
 
 If the `osi` command is not found after installation, add npm's global executable directory to your `PATH`. On Unix-like systems, this is the `bin` directory under `npm prefix -g`; on Windows, it is the directory returned by `npm prefix -g`.
@@ -57,17 +61,17 @@ If the `osi` command is not found after installation, add npm's global executabl
 osi impact [--no-search] [--include-low] <change-id|path>
 osi scope  [--no-search] [--include-low] <change-id|path>
 osi history <change-id|path>
-osi init
+osi init [--agent <id[,id...]>]
 ```
 
 `<change>` is a live change id, such as `add-renewal-status`, or a path such as `openspec/changes/add-renewal-status`. Archived changes are not resolved by id.
 
-| Command       | Output                                                                         |
-| ------------- | ------------------------------------------------------------------------------ |
-| `osi impact`  | Main evidence pipeline: named seeds, citation references, and history.         |
-| `osi scope`   | `concepts`, ranked `candidates`, and related `tests`.                          |
-| `osi history` | `seeds` and `history`, with the same history rules as `impact`; no `refs` key. |
-| `osi init`    | Installs the Cursor skill and slash command in the OpenSpec project.           |
+| Command       | Output                                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `osi impact`  | Main evidence pipeline: named seeds, citation references, and history.                                         |
+| `osi scope`   | `concepts`, ranked `candidates`, and related `tests`.                                                          |
+| `osi history` | `seeds` and `history`, with the same history rules as `impact`; no `refs` key.                                 |
+| `osi init`    | Installs the osi-impact skill for the selected agents. Detected agents start selected; scripts pass `--agent`. |
 
 - `--no-search` keeps harvested concepts but skips the repository scan. In `scope`, `candidates` and `tests` are empty; in `impact`, `seeds`, `refs`, and `history` are empty.
 - `--include-low` adds up to 20 low-confidence candidates to `scope`. The flag is accepted by `impact`, but does not add low-confidence rows to its output; `impact` reports named high-confidence seeds.
@@ -147,7 +151,7 @@ npm run fmt
 
 `openspec-impact` 提供命令行工具 `osi`，为一份进行中的 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 变更收集确定性证据。它根据变更文档里的明确引用寻找代码文件，再补充有限的 Git 历史线索。它不会决定哪些文件必须修改，CLI 本身也不调用大模型。
 
-可选的 Cursor 技能 `/osi-impact` 会读取这些证据并生成易读的影响面报告。面向产品经理的介绍见[产品说明](docs/product-overview.md)。
+可选的 agent 技能 `/osi-impact` 会读取这些证据并生成易读的影响面报告。面向产品经理的介绍见[产品说明](docs/product-overview.md)。
 
 ### 环境要求
 
@@ -162,18 +166,24 @@ npm run fmt
 npm install -g openspec-impact@latest
 ```
 
-在包含进行中 OpenSpec 变更的目标项目里，安装或刷新 Cursor 技能和斜杠命令：
+在包含进行中 OpenSpec 变更的目标项目里，为正在使用的 agent 安装影响面技能：
 
 ```bash
 cd your-openspec-project
 osi init
 ```
 
-然后在 Cursor 中调用斜杠命令：
+`osi init` 会在最近的 OpenSpec 项目根目录检查 Cursor、Claude Code、Codex、Windsurf、Cline、Roo Code、OpenCode、GitHub Copilot 和 Pi 的项目配置。在终端里它会打印命中的路径，列出全部支持的 agent，并预选检测到的项。上下键移动，空格勾选或取消，回车安装。没有检测到时不预选，仍可以手选。只有确认的 agent 会被写入或刷新，其余 agent 文件保持不变。
 
-```text
-/osi-impact add-renewal-status
+脚本里传入同样的 id，跳过选择：
+
+```bash
+osi init --agent cursor,codex
 ```
+
+Agent id：`cursor`、`claude`、`codex`、`windsurf`、`cline`、`roo`、`opencode`、`github-copilot`、`pi`。stdin 不是终端且没有 `--agent` 时，`osi init` 报错退出，不写文件。
+
+安装后用进行中的变更 id 调用技能。Cursor、Claude Code、Windsurf、Cline、Roo Code、OpenCode、GitHub Copilot 和 Pi 使用 `/osi-impact add-renewal-status`。Codex 使用 `$osi-impact`。
 
 如需直接在终端获取 YAML 证据，运行：
 
@@ -181,13 +191,11 @@ osi init
 osi impact add-renewal-status
 ```
 
-`osi init` 会在最近的 OpenSpec 项目根目录创建或更新 `.cursor/skills/osi-impact/SKILL.md` 和 `.cursor/commands/osi-impact.md`。
-
-升级全局安装的包后，再次运行 `osi init`，用新版本模板刷新并覆盖项目中的这两个文件：
+升级全局安装的包后，再次运行 `osi init`，或带上 `--agent`，刷新所选文件：
 
 ```bash
 npm install -g openspec-impact@latest
-osi init
+osi init --agent cursor
 ```
 
 如果安装后找不到 `osi` 命令，请将 npm 的全局可执行文件目录加入 `PATH`。在类 Unix 系统中，它是 `npm prefix -g` 返回目录下的 `bin`；在 Windows 中则是 `npm prefix -g` 返回的目录。
@@ -198,17 +206,17 @@ osi init
 osi impact [--no-search] [--include-low] <change-id|path>
 osi scope  [--no-search] [--include-low] <change-id|path>
 osi history <change-id|path>
-osi init
+osi init [--agent <id[,id...]>]
 ```
 
 `<change>` 可以是进行中的变更 id（如 `add-renewal-status`），也可以是路径（如 `openspec/changes/add-renewal-status`）。归档变更不能只靠 id 解析。
 
-| 命令          | 输出                                                                    |
-| ------------- | ----------------------------------------------------------------------- |
-| `osi impact`  | 默认证据管线：具名种子、引用情况和历史线索。                            |
-| `osi scope`   | `concepts`、排序后的 `candidates` 和相关 `tests`。                      |
-| `osi history` | `seeds` 和 `history`，使用与 `impact` 相同的历史规则，但不输出 `refs`。 |
-| `osi init`    | 在 OpenSpec 项目安装 Cursor 技能和斜杠命令。                            |
+| 命令          | 输出                                                                             |
+| ------------- | -------------------------------------------------------------------------------- |
+| `osi impact`  | 默认证据管线：具名种子、引用情况和历史线索。                                     |
+| `osi scope`   | `concepts`、排序后的 `candidates` 和相关 `tests`。                               |
+| `osi history` | `seeds` 和 `history`，使用与 `impact` 相同的历史规则，但不输出 `refs`。          |
+| `osi init`    | 为所选 agent 安装 osi-impact 技能。检测到的 agent 默认选中；脚本使用 `--agent`。 |
 
 - `--no-search` 保留从变更文档抽出的概念，但跳过仓库搜索。`scope` 的 `candidates` 和 `tests` 会为空；`impact` 的 `seeds`、`refs` 和 `history` 会为空。
 - `--include-low` 让 `scope` 额外输出最多 20 个低置信度候选。`impact` 虽接受此参数，但不会因此多输出低置信度项；它只报告具名高置信度种子。

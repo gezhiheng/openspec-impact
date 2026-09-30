@@ -4,17 +4,18 @@ import { fileURLToPath } from 'node:url'
 import { LocateError, UsageError } from './models/evidence.js'
 import { runEvidence } from './commands/evidence.js'
 import { runHistory } from './commands/history.js'
-import { INIT_COMMAND_REL, INIT_SKILL_REL, runInit } from './commands/init.js'
+import { agentIds, parseAgentList, promptInit, runInit } from './commands/init.js'
 import { runScope } from './commands/scope.js'
 import { toEvidenceYaml, toHistoryYaml, toYaml } from './output/yaml.js'
 
 export const USAGE = `Usage: osi impact [--no-search] [--include-low] <change-id|path>
        osi scope [--no-search] [--include-low] <change-id|path>
        osi history <change-id|path>
-       osi init
+       osi init [--agent <id[,id...]>]
 
 impact prints seeds + refs + history YAML for a live OpenSpec change.
 scope, history, impact, and init are reserved commands.
+Agents: ${agentIds()}
 `
 
 const LAYERS = new Set(['scope', 'history', 'impact'])
@@ -25,6 +26,7 @@ export type ParsedArgs =
       command: 'init'
       includeLow: boolean
       search: boolean
+      agents?: string[]
     }
   | {
       ok: true
@@ -36,15 +38,33 @@ export type ParsedArgs =
   | { ok: false; message: string }
 
 export function parseArgv(argv: string[]): ParsedArgs {
-  const rest = [...argv]
   let includeLow = false
   let search = true
+  let agents: string[] | undefined
   const positional: string[] = []
-  for (const arg of rest) {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i] ?? ''
     if (arg === '--include-low') {
       includeLow = true
     } else if (arg === '--no-search') {
       search = false
+    } else if (arg === '--agent' || arg.startsWith('--agent=')) {
+      const inline = arg.startsWith('--agent=')
+      const value = inline ? arg.slice('--agent='.length) : argv[i + 1]
+      if (!inline) {
+        i++
+      }
+      if (!value || value.startsWith('-')) {
+        return { ok: false, message: `Missing --agent value\n${USAGE}` }
+      }
+      try {
+        agents = [...new Set([...(agents ?? []), ...parseAgentList(value)])]
+      } catch (err) {
+        if (err instanceof UsageError) {
+          return { ok: false, message: `${err.message}\n${USAGE}` }
+        }
+        throw err
+      }
     } else if (arg.startsWith('-')) {
       return { ok: false, message: `Unknown flag: ${arg}\n${USAGE}` }
     } else {
@@ -52,6 +72,9 @@ export function parseArgv(argv: string[]): ParsedArgs {
     }
   }
   const first = positional[0]
+  if (agents && first !== 'init') {
+    return { ok: false, message: USAGE }
+  }
   if (!first) {
     return { ok: false, message: USAGE }
   }
@@ -59,7 +82,7 @@ export function parseArgv(argv: string[]): ParsedArgs {
     if (positional.length !== 1) {
       return { ok: false, message: USAGE }
     }
-    return { ok: true, command: 'init', includeLow, search }
+    return { ok: true, command: 'init', includeLow, search, agents }
   }
   if (LAYERS.has(first)) {
     const change = positional[1]
@@ -77,7 +100,7 @@ export function parseArgv(argv: string[]): ParsedArgs {
   return { ok: false, message: USAGE }
 }
 
-export function main(argv = process.argv.slice(2), cwd = process.cwd()): number {
+export async function main(argv = process.argv.slice(2), cwd = process.cwd()): Promise<number> {
   const parsed = parseArgv(argv)
   if (!parsed.ok) {
     process.stderr.write(parsed.message.endsWith('\n') ? parsed.message : `${parsed.message}\n`)
@@ -85,8 +108,21 @@ export function main(argv = process.argv.slice(2), cwd = process.cwd()): number 
   }
   try {
     if (parsed.command === 'init') {
-      runInit({ cwd })
-      process.stdout.write(`Wrote ${INIT_SKILL_REL}\nWrote ${INIT_COMMAND_REL}\n`)
+      if (!parsed.agents && !process.stdin.isTTY) {
+        process.stderr.write(
+          `osi init requires --agent <id[,id...]> when stdin is not a terminal.\n${USAGE}`,
+        )
+        return 1
+      }
+      const agents = parsed.agents ?? (await promptInit(cwd))
+      if (agents.length === 0) {
+        process.stdout.write('No integrations selected.\n')
+        return 0
+      }
+      const { wrote } = runInit({ cwd, agents })
+      for (const rel of wrote) {
+        process.stdout.write(`Wrote ${rel}\n`)
+      }
       return 0
     }
     if (parsed.command === 'history') {
@@ -139,5 +175,7 @@ function isDirectRun(): boolean {
 }
 
 if (isDirectRun()) {
-  process.exitCode = main()
+  Promise.resolve(main()).then((code) => {
+    process.exitCode = code
+  })
 }
