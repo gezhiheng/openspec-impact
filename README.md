@@ -38,7 +38,13 @@ osi init --agent cursor,codex
 
 Agent ids: `cursor`, `claude`, `codex`, `windsurf`, `cline`, `roo`, `opencode`, `github-copilot`, `pi`. If stdin is not a terminal and `--agent` is missing, `osi init` exits with an error and writes nothing.
 
-Invoke the installed skill with a live change id. Cursor, Claude Code, Windsurf, Cline, Roo Code, OpenCode, GitHub Copilot, and Pi use `/opsx-impact add-renewal-status`. Codex uses `$opsx-impact`.
+In the agent chat for that project, type the live change name:
+
+```text
+/opsx-impact <change-name>
+```
+
+For example, `/opsx-impact add-renewal-status`. Cursor, Claude Code, Windsurf, Cline, Roo Code, OpenCode, GitHub Copilot, and Pi use that slash command. Codex uses `$opsx-impact <change-name>`. The agent reads the evidence and replies with the impact report in the chat.
 
 To get YAML evidence directly in a terminal, run:
 
@@ -183,7 +189,13 @@ osi init --agent cursor,codex
 
 Agent id：`cursor`、`claude`、`codex`、`windsurf`、`cline`、`roo`、`opencode`、`github-copilot`、`pi`。stdin 不是终端且没有 `--agent` 时，`osi init` 报错退出，不写文件。
 
-安装后用进行中的变更 id 调用技能。Cursor、Claude Code、Windsurf、Cline、Roo Code、OpenCode、GitHub Copilot 和 Pi 使用 `/opsx-impact add-renewal-status`。Codex 使用 `$opsx-impact`。
+在该项目的 agent 对话里，输入进行中的变更名：
+
+```text
+/opsx-impact <change-name>
+```
+
+例如 `/opsx-impact add-renewal-status`。Cursor、Claude Code、Windsurf、Cline、Roo Code、OpenCode、GitHub Copilot 和 Pi 使用这条斜杠命令。Codex 使用 `$opsx-impact <change-name>`。agent 读取证据后，在对话里回复影响面报告。
 
 如需直接在终端获取 YAML 证据，运行：
 
