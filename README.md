@@ -6,7 +6,7 @@
 
 `openspec-impact` provides the `osi` CLI for gathering deterministic evidence about a live [OpenSpec](https://github.com/Fission-AI/OpenSpec) change. It finds code files that match explicit citations in the change docs and adds limited Git history. It does not decide which files must change, and the CLI does not call an LLM.
 
-An optional agent skill (`/osi-impact`) reads the evidence and writes a human-readable impact report. For a product-manager-oriented overview, see [the product guide](docs/product-overview.md).
+An optional agent skill (`/opsx-impact`) reads the evidence and writes a human-readable impact report. For a product-manager-oriented overview, see [the product guide](docs/product-overview.md).
 
 ### Requirements
 
@@ -38,7 +38,7 @@ osi init --agent cursor,codex
 
 Agent ids: `cursor`, `claude`, `codex`, `windsurf`, `cline`, `roo`, `opencode`, `github-copilot`, `pi`. If stdin is not a terminal and `--agent` is missing, `osi init` exits with an error and writes nothing.
 
-Invoke the installed skill with a live change id. Cursor, Claude Code, Windsurf, Cline, Roo Code, OpenCode, GitHub Copilot, and Pi use `/osi-impact add-renewal-status`. Codex uses `$osi-impact`.
+Invoke the installed skill with a live change id. Cursor, Claude Code, Windsurf, Cline, Roo Code, OpenCode, GitHub Copilot, and Pi use `/opsx-impact add-renewal-status`. Codex uses `$opsx-impact`.
 
 To get YAML evidence directly in a terminal, run:
 
@@ -71,7 +71,7 @@ osi init [--agent <id[,id...]>]
 | `osi impact`  | Main evidence pipeline: named seeds, citation references, and history.                                         |
 | `osi scope`   | `concepts`, ranked `candidates`, and related `tests`.                                                          |
 | `osi history` | `seeds` and `history`, with the same history rules as `impact`; no `refs` key.                                 |
-| `osi init`    | Installs the osi-impact skill for the selected agents. Detected agents start selected; scripts pass `--agent`. |
+| `osi init`    | Installs the opsx-impact skill for the selected agents. Detected agents start selected; scripts pass `--agent`. |
 
 - `--no-search` keeps harvested concepts but skips the repository scan. In `scope`, `candidates` and `tests` are empty; in `impact`, `seeds`, `refs`, and `history` are empty.
 - `--include-low` adds up to 20 low-confidence candidates to `scope`. The flag is accepted by `impact`, but does not add low-confidence rows to its output; `impact` reports named high-confidence seeds.
@@ -151,7 +151,7 @@ npm run fmt
 
 `openspec-impact` 提供命令行工具 `osi`，为一份进行中的 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 变更收集确定性证据。它根据变更文档里的明确引用寻找代码文件，再补充有限的 Git 历史线索。它不会决定哪些文件必须修改，CLI 本身也不调用大模型。
 
-可选的 agent 技能 `/osi-impact` 会读取这些证据并生成易读的影响面报告。面向产品经理的介绍见[产品说明](docs/product-overview.md)。
+可选的 agent 技能 `/opsx-impact` 会读取这些证据并生成易读的影响面报告。面向产品经理的介绍见[产品说明](docs/product-overview.md)。
 
 ### 环境要求
 
@@ -183,7 +183,7 @@ osi init --agent cursor,codex
 
 Agent id：`cursor`、`claude`、`codex`、`windsurf`、`cline`、`roo`、`opencode`、`github-copilot`、`pi`。stdin 不是终端且没有 `--agent` 时，`osi init` 报错退出，不写文件。
 
-安装后用进行中的变更 id 调用技能。Cursor、Claude Code、Windsurf、Cline、Roo Code、OpenCode、GitHub Copilot 和 Pi 使用 `/osi-impact add-renewal-status`。Codex 使用 `$osi-impact`。
+安装后用进行中的变更 id 调用技能。Cursor、Claude Code、Windsurf、Cline、Roo Code、OpenCode、GitHub Copilot 和 Pi 使用 `/opsx-impact add-renewal-status`。Codex 使用 `$opsx-impact`。
 
 如需直接在终端获取 YAML 证据，运行：
 
@@ -216,7 +216,7 @@ osi init [--agent <id[,id...]>]
 | `osi impact`  | 默认证据管线：具名种子、引用情况和历史线索。                                     |
 | `osi scope`   | `concepts`、排序后的 `candidates` 和相关 `tests`。                               |
 | `osi history` | `seeds` 和 `history`，使用与 `impact` 相同的历史规则，但不输出 `refs`。          |
-| `osi init`    | 为所选 agent 安装 osi-impact 技能。检测到的 agent 默认选中；脚本使用 `--agent`。 |
+| `osi init`    | 为所选 agent 安装 opsx-impact 技能。检测到的 agent 默认选中；脚本使用 `--agent`。 |
 
 - `--no-search` 保留从变更文档抽出的概念，但跳过仓库搜索。`scope` 的 `candidates` 和 `tests` 会为空；`impact` 的 `seeds`、`refs` 和 `history` 会为空。
 - `--include-low` 让 `scope` 额外输出最多 20 个低置信度候选。`impact` 虽接受此参数，但不会因此多输出低置信度项；它只报告具名高置信度种子。

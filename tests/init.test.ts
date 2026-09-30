@@ -22,8 +22,8 @@ import {
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const cli = join(repoRoot, 'dist/src/cli.js')
-const skillTemplate = join(repoRoot, 'templates/osi-impact/SKILL.md')
-const cursorCommand = join(repoRoot, 'templates/cursor/osi-impact.md')
+const skillTemplate = join(repoRoot, 'templates/opsx-impact/SKILL.md')
+const cursorCommand = join(repoRoot, 'templates/cursor/opsx-impact.md')
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), 'osi-init-'))
@@ -117,13 +117,13 @@ describe('osi init detection', () => {
       writeRel(shared, '.agents/skills/other/SKILL.md', '---\nname: other\n---\n')
       assert.deepEqual(detectAgents(shared), [])
 
-      writeRel(exact, '.agents/skills/osi-impact/SKILL.md', 'installed\n')
+      writeRel(exact, '.agents/skills/opsx-impact/SKILL.md', 'installed\n')
       const owned = detectAgents(exact)
       assert.deepEqual(
         owned.map((hit) => hit.id),
         ['codex'],
       )
-      assert.equal(owned[0]?.paths.includes('.agents/skills/osi-impact/SKILL.md'), true)
+      assert.equal(owned[0]?.paths.includes('.agents/skills/opsx-impact/SKILL.md'), true)
     } finally {
       rmSync(none, { recursive: true, force: true })
       rmSync(one, { recursive: true, force: true })
@@ -145,7 +145,8 @@ describe('osi init', () => {
         assert.equal(r.stdout.includes('Detected:'), false)
         assert.equal(existsSync(join(dir, 'openspec')), false)
         const skill = readFileSync(join(dir, agent.skill), 'utf8')
-        assert.match(skill, /name: osi-impact/)
+        assert.match(skill, /name: opsx-impact/)
+        assert.match(skill, /osi impact/)
         assert.match(skill, /## 一句话/)
         if (agent.id === 'cursor') {
           assert.equal(skill, readFileSync(skillTemplate, 'utf8'))
@@ -158,7 +159,7 @@ describe('osi init', () => {
         }
         if (agent.command) {
           const command = readFileSync(join(dir, agent.command), 'utf8')
-          assert.match(command, /osi-impact/)
+          assert.match(command, /\/opsx-impact/)
           assert.match(command, /add-renewal-status/)
           assert.equal(r.stdout.includes(`Wrote ${agent.command}`), true)
         }
@@ -177,12 +178,17 @@ describe('osi init', () => {
     const dir = tmp()
     try {
       writeRel(dir, INIT_SKILL_REL, 'stale\n')
+      writeRel(dir, '.cursor/skills/osi-impact/SKILL.md', 'old skill\n')
+      writeRel(dir, '.cursor/commands/osi-impact.md', 'old command\n')
       writeRel(dir, '.claude/skills/osi-impact/SKILL.md', 'keep\n')
       writeRel(dir, '.cursor/rules/keep.md', 'rule\n')
       const refreshed = runInit({ cwd: dir, agents: ['cursor'] })
       assert.deepEqual(refreshed.wrote, [INIT_SKILL_REL, INIT_COMMAND_REL])
       const after = readFileSync(join(dir, INIT_SKILL_REL), 'utf8')
       assert.equal(after, readFileSync(skillTemplate, 'utf8'))
+      assert.equal(existsSync(join(dir, '.cursor/skills/osi-impact/SKILL.md')), false)
+      assert.equal(existsSync(join(dir, '.cursor/skills/osi-impact')), false)
+      assert.equal(existsSync(join(dir, '.cursor/commands/osi-impact.md')), false)
       assert.equal(readFileSync(join(dir, '.claude/skills/osi-impact/SKILL.md'), 'utf8'), 'keep\n')
       assert.equal(readFileSync(join(dir, '.cursor/rules/keep.md'), 'utf8'), 'rule\n')
 
@@ -226,7 +232,7 @@ describe('osi init', () => {
       assert.notEqual(bad.status, 0)
       assert.match(bad.stderr, /unknown-agent/)
       assert.equal(existsSync(join(dir, INIT_SKILL_REL)), false)
-      assert.equal(existsSync(join(dir, '.agents/skills/osi-impact/SKILL.md')), false)
+      assert.equal(existsSync(join(dir, '.agents/skills/opsx-impact/SKILL.md')), false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -238,12 +244,12 @@ describe('osi init', () => {
       writeFileSync(join(dir, '.clinerules'), 'rules\n')
       const r = osi(dir, ['init', '--agent', 'cline'])
       assert.equal(r.status, 0, r.stderr)
-      assert.match(r.stderr, /Skipped \.clinerules\/workflows\/osi-impact\.md/)
+      assert.match(r.stderr, /Skipped \.clinerules\/workflows\/opsx-impact\.md/)
       assert.equal(readFileSync(join(dir, '.clinerules'), 'utf8'), 'rules\n')
-      assert.equal(existsSync(join(dir, '.clinerules/workflows/osi-impact.md')), false)
+      assert.equal(existsSync(join(dir, '.clinerules/workflows/opsx-impact.md')), false)
       assert.match(
-        readFileSync(join(dir, '.cline/skills/osi-impact/SKILL.md'), 'utf8'),
-        /name: osi-impact/,
+        readFileSync(join(dir, '.cline/skills/opsx-impact/SKILL.md'), 'utf8'),
+        /name: opsx-impact/,
       )
     } finally {
       rmSync(dir, { recursive: true, force: true })

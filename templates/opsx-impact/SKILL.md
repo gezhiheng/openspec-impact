@@ -1,16 +1,16 @@
 ---
-name: osi-impact
-description: Judge a live OpenSpec change from `osi` evidence. Usage: /osi-impact {change}
+name: opsx-impact
+description: Judge a live OpenSpec change from `osi` evidence. Usage: /opsx-impact {change}
 disable-model-invocation: true
 ---
 
-# osi-impact
+# opsx-impact
 
-Usage: `/osi-impact {change} [--base <name>=<ref> ...]`
+Usage: `/opsx-impact {change} [--base <name>=<ref> ...]`
 
 `{change}` is a live OpenSpec change id or path. If omitted, ask. Run from the project that contains `openspec/changes/<id>/`. Requires `osi` on PATH. Repeat `--base` once per Git root when that root has no unique default branch. `<name>` is the root's basename or workspace-relative path.
 
-This skill fires only when the user types `/osi-impact`.
+This skill fires only when the user types `/opsx-impact`.
 
 Write the 影响面 in the user's language, chat only. Five headings, every report (planned and empty seeds too): `## 一句话` → `## 影响范围` → `## 可能遗漏` → `## 故意没动` → `## 上线注意`. Files go in parentheses after the 表现.
 

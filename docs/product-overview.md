@@ -51,10 +51,10 @@ osi impact add-renewal-status
 命令输出 YAML 证据。若团队使用 Cursor、Claude Code、Codex、Windsurf、Cline、Roo Code、OpenCode、GitHub Copilot 或 Pi，可以先在目标 OpenSpec 项目执行 `osi init`。它会报告检测到的项目配置，列出这些 agent，并预选检测到的项。上下键移动，空格勾选或取消，回车安装；没有检测到时不预选，仍可以手选。脚本使用 `osi init --agent cursor,claude`。安装后在多数工具里运行：
 
 ```text
-/osi-impact add-renewal-status
+/opsx-impact add-renewal-status
 ```
 
-Codex 的调用是 `$osi-impact`。技能会结合变更文档、证据和适用时的代码差异，生成中文或当前对话语言的报告，分为“一句话、影响范围、可能遗漏、故意没动、上线注意”。报告以对话形式呈现，不写回变更目录。
+Codex 的调用是 `$opsx-impact`。技能会结合变更文档、证据和适用时的代码差异，生成中文或当前对话语言的报告，分为“一句话、影响范围、可能遗漏、故意没动、上线注意”。报告以对话形式呈现，不写回变更目录。
 
 ## 如何读结果
 
@@ -88,7 +88,7 @@ Codex 的调用是 `$osi-impact`。技能会结合变更文档、证据和适用
 | `osi impact <变更>`  | 默认工作流，输出 seed、引用频次和历史关联证据。                                               |
 | `osi scope <变更>`   | 只看从变更引用检索到的概念、候选文件和测试文件，可用于定位搜索结果。                          |
 | `osi history <变更>` | 只看 seed 与历史/同目录关联，不输出 `refs`。                                                  |
-| `osi init`           | 在 OpenSpec 项目安装所选 agent 的 osi-impact 技能。交互时预选检测到的配置；脚本用 `--agent`。 |
+| `osi init`           | 在 OpenSpec 项目安装所选 agent 的 opsx-impact 技能。交互时预选检测到的配置；脚本用 `--agent`。 |
 
 `--no-search` 可跳过仓库搜索；`--include-low` 可在 `scope` / `impact` 中增加低置信度候选。完整命令和 YAML 结构见项目根目录的 README。
 

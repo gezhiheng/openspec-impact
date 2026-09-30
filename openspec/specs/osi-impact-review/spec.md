@@ -2,13 +2,13 @@
 
 ## Purpose
 
-The `/osi-impact` report reviews an OpenSpec change using both bounded OSI evidence and the actual changes in each repository covered by that change. It helps identify uncovered edits and unverified requirements without presenting a limited candidate search as a completeness guarantee.
+The `/opsx-impact` report reviews an OpenSpec change using both bounded OSI evidence and the actual changes in each repository covered by that change. It helps identify uncovered edits and unverified requirements without presenting a limited candidate search as a completeness guarantee.
 
 ## Requirements
 
 ### Requirement: Review all in-scope changed paths independently of OSI candidates
 
-The `/osi-impact` skill MUST identify the Git roots covered by the live change from its stated repository and path scope, then inventory changed paths in each root independently of `osi impact` seeds and history. The inventory MUST include committed changes relative to the selected base, staged and unstaged tracked changes, and untracked non-ignored files. The skill MUST reconcile every in-scope changed path with the OSI evidence and review any changed path that is absent from that evidence. Explicitly out-of-scope paths MAY be excluded when the change documents establish that boundary.
+The `/opsx-impact` skill MUST identify the Git roots covered by the live change from its stated repository and path scope, then inventory changed paths in each root independently of `osi impact` seeds and history. The inventory MUST include committed changes relative to the selected base, staged and unstaged tracked changes, and untracked non-ignored files. The skill MUST reconcile every in-scope changed path with the OSI evidence and review any changed path that is absent from that evidence. Explicitly out-of-scope paths MAY be excluded when the change documents establish that boundary.
 
 #### Scenario: In-scope changed path is absent from OSI evidence
 

@@ -32,4 +32,4 @@ Argv is hand-parsed in `src/cli.ts`. YAML is hand-written in `src/output/yaml.ts
 
 ## Stack
 
-Node stdlib, `git`, `rg` (fallback `git grep`). Imports use `.js` specifiers (`module: Node16`). The skill body source of truth is `templates/osi-impact/SKILL.md`. `osi init` installs it for the selected agents; the Cursor copy keeps that file's frontmatter.
+Node stdlib, `git`, `rg` (fallback `git grep`). Imports use `.js` specifiers (`module: Node16`). The skill body source of truth is `templates/opsx-impact/SKILL.md`. `osi init` installs it for the selected agents; the Cursor copy keeps that file's frontmatter.

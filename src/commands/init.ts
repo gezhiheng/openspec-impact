@@ -1,12 +1,12 @@
 import { emitKeypressEvents } from 'node:readline'
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { UsageError } from '../models/evidence.js'
 import { findProjectRoot } from '../openspec/parser.js'
 
-export const INIT_SKILL_REL = '.cursor/skills/osi-impact/SKILL.md'
-export const INIT_COMMAND_REL = '.cursor/commands/osi-impact.md'
+export const INIT_SKILL_REL = '.cursor/skills/opsx-impact/SKILL.md'
+export const INIT_COMMAND_REL = '.cursor/commands/opsx-impact.md'
 
 export type AgentAdapter = {
   id: string
@@ -19,12 +19,12 @@ export type AgentAdapter = {
 
 const OTHER_FRONT = [
   '---',
-  'name: osi-impact',
-  'description: Judge a live OpenSpec change from `osi` evidence. Usage: /osi-impact {change}',
+  'name: opsx-impact',
+  'description: Judge a live OpenSpec change from `osi` evidence. Usage: /opsx-impact {change}',
   '---',
 ].join('\n')
 
-const GENERATED_COMMAND = `Follow the \`osi-impact\` skill. Usage: \`/osi-impact {change}\`
+const GENERATED_COMMAND = `Follow the \`opsx-impact\` skill. Usage: \`/opsx-impact {change}\`
 
 \`{change}\` is a live OpenSpec change id or path (\`add-renewal-status\`, \`openspec/changes/add-renewal-status\`). Run \`osi impact {change}\` for YAML evidence.
 `
@@ -36,48 +36,48 @@ export const AGENTS: readonly AgentAdapter[] = [
     markers: ['.cursor'],
     skill: INIT_SKILL_REL,
     command: INIT_COMMAND_REL,
-    commandTemplate: 'cursor/osi-impact.md',
+    commandTemplate: 'cursor/opsx-impact.md',
   },
   {
     id: 'claude',
     label: 'Claude Code',
     markers: ['.claude', 'CLAUDE.md'],
-    skill: '.claude/skills/osi-impact/SKILL.md',
+    skill: '.claude/skills/opsx-impact/SKILL.md',
   },
   {
     id: 'codex',
     label: 'Codex',
     // .agents/ and AGENTS.md are shared; they must not select Codex.
     markers: ['.codex'],
-    skill: '.agents/skills/osi-impact/SKILL.md',
+    skill: '.agents/skills/opsx-impact/SKILL.md',
   },
   {
     id: 'windsurf',
     label: 'Windsurf',
     markers: ['.windsurf', '.windsurfrules'],
-    skill: '.windsurf/skills/osi-impact/SKILL.md',
-    command: '.windsurf/workflows/osi-impact.md',
+    skill: '.windsurf/skills/opsx-impact/SKILL.md',
+    command: '.windsurf/workflows/opsx-impact.md',
   },
   {
     id: 'cline',
     label: 'Cline',
     markers: ['.cline', '.clinerules'],
-    skill: '.cline/skills/osi-impact/SKILL.md',
-    command: '.clinerules/workflows/osi-impact.md',
+    skill: '.cline/skills/opsx-impact/SKILL.md',
+    command: '.clinerules/workflows/opsx-impact.md',
   },
   {
     id: 'roo',
     label: 'Roo Code',
     markers: ['.roo', '.roorules', '.roomodes'],
-    skill: '.roo/skills/osi-impact/SKILL.md',
-    command: '.roo/commands/osi-impact.md',
+    skill: '.roo/skills/opsx-impact/SKILL.md',
+    command: '.roo/commands/opsx-impact.md',
   },
   {
     id: 'opencode',
     label: 'OpenCode',
     markers: ['.opencode', 'opencode.json'],
-    skill: '.opencode/skills/osi-impact/SKILL.md',
-    command: '.opencode/commands/osi-impact.md',
+    skill: '.opencode/skills/opsx-impact/SKILL.md',
+    command: '.opencode/commands/opsx-impact.md',
   },
   {
     id: 'github-copilot',
@@ -89,15 +89,15 @@ export const AGENTS: readonly AgentAdapter[] = [
       '.github/agents',
       '.github/instructions',
     ],
-    skill: '.github/skills/osi-impact/SKILL.md',
-    command: '.github/prompts/osi-impact.prompt.md',
+    skill: '.github/skills/opsx-impact/SKILL.md',
+    command: '.github/prompts/opsx-impact.prompt.md',
   },
   {
     id: 'pi',
     label: 'Pi',
     markers: ['.pi'],
-    skill: '.pi/skills/osi-impact/SKILL.md',
-    command: '.pi/prompts/osi-impact.md',
+    skill: '.pi/skills/opsx-impact/SKILL.md',
+    command: '.pi/prompts/opsx-impact.md',
   },
 ]
 
@@ -293,6 +293,22 @@ function parentIsFile(root: string, rel: string): boolean {
   return false
 }
 
+function removePrevious(root: string, rel: string): void {
+  const old = rel.replaceAll('opsx-impact', 'osi-impact')
+  if (old === rel) {
+    return
+  }
+  const abs = join(root, old)
+  if (!existsSync(abs) || !statSync(abs).isFile()) {
+    return
+  }
+  unlinkSync(abs)
+  const parent = dirname(abs)
+  if (basename(parent) === 'osi-impact' && readdirSync(parent).length === 0) {
+    rmdirSync(parent)
+  }
+}
+
 export function runInit(opts: { cwd: string; agents: string[] }): {
   root: string
   wrote: string[]
@@ -312,14 +328,14 @@ export function runInit(opts: { cwd: string; agents: string[] }): {
     return { root, wrote: [] }
   }
   const pkg = packageRoot()
-  const skillSrc = join(pkg, 'templates/osi-impact/SKILL.md')
+  const skillSrc = join(pkg, 'templates/opsx-impact/SKILL.md')
   if (!existsSync(skillSrc)) {
     throw new UsageError('osi init templates not found')
   }
   const skillRaw = readFileSync(skillSrc, 'utf8')
   let cursorCommand = ''
   if (selected.some((agent) => agent.commandTemplate)) {
-    const commandSrc = join(pkg, 'templates/cursor/osi-impact.md')
+    const commandSrc = join(pkg, 'templates/cursor/opsx-impact.md')
     if (!existsSync(commandSrc)) {
       throw new UsageError('osi init templates not found')
     }
@@ -342,6 +358,7 @@ export function runInit(opts: { cwd: string; agents: string[] }): {
     }
   }
   for (const file of planned) {
+    removePrevious(root, file.rel)
     const dest = join(root, file.rel)
     mkdirSync(dirname(dest), { recursive: true })
     writeFileSync(dest, file.text)

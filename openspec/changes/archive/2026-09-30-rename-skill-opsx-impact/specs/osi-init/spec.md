@@ -1,10 +1,4 @@
-# osi-init Specification
-
-## Purpose
-
-Lets an operator run `osi init` in a project to install the versioned opsx-impact Cursor skill and slash command so `/opsx-impact {spec name}` works.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Init command installs Cursor skill and command
 
@@ -57,38 +51,7 @@ On success, `osi init` MUST exit 0, MUST NOT print a YAML document on stdout, an
 - **AND** `.cursor/skills/osi-impact/SKILL.md` does not exist
 - **AND** `.cursor/commands/osi-impact.md` does not exist
 
-### Requirement: Init locates the install root
-
-The CLI MUST walk upward from the current working directory to find an OpenSpec project root (a directory that contains `openspec/`), using the same nearest-root rule as `osi scope`. If found, that directory is the install root for every selected integration. If none is found, the current working directory is the install root.
-
-#### Scenario: Subdirectory still installs selected integrations at the OpenSpec root
-
-- **WHEN** a project contains `openspec/` at its root
-- **AND** the operator runs `osi init` from a subdirectory and selects an integration
-- **THEN** that integration's files are written under the OpenSpec project root, not under the subdirectory
-
-#### Scenario: No OpenSpec root uses cwd
-
-- **WHEN** no ancestor directory contains `openspec/`
-- **AND** the operator runs `osi init` and selects an integration
-- **THEN** that integration's files are written under the current working directory
-
-### Requirement: Init overwrites existing install files
-
-For each selected integration, if a destination file already exists, the CLI MUST replace its contents with the packaged template. Missing selected files MUST still be created. Files belonging to unselected integrations MUST remain unchanged. The CLI MUST NOT delete unrelated files under agent configuration directories.
-
-#### Scenario: Selected existing skill is refreshed
-
-- **WHEN** a selected agent's osi-impact skill file already exists with different contents
-- **AND** the operator completes `osi init`
-- **THEN** that file's contents match the packaged template
-- **AND** the process exits 0
-
-#### Scenario: Unselected integration is left alone
-
-- **WHEN** an integration has an existing osi-impact file but is not selected
-- **AND** the operator completes `osi init` for other agents
-- **THEN** the unselected file remains unchanged
+## ADDED Requirements
 
 ### Requirement: Init removes the previous osi-impact install for selected agents
 
