@@ -250,6 +250,33 @@ describe('osi init', () => {
     }
   })
 
+  it('installs completeness-review safeguards in the skill and command', () => {
+    const dir = tmp()
+    try {
+      const r = osi(dir, ['init', '--agent', 'cursor'])
+      assert.equal(r.status, 0, r.stderr)
+      const skill = readFileSync(join(dir, INIT_SKILL_REL), 'utf8')
+      const command = readFileSync(join(dir, INIT_COMMAND_REL), 'utf8')
+      assert.equal(skill, readFileSync(skillTemplate, 'utf8'))
+      assert.equal(command, readFileSync(cursorCommand, 'utf8'))
+      assert.match(skill, /absent from seed `path`s and history `path`s/)
+      assert.match(skill, /upstream is not a base/)
+      assert.match(skill, /tracks its remote counterpart/)
+      assert.equal(skill.includes('@{u}'), false)
+      assert.match(skill, /ls-files --others --exclude-standard/)
+      assert.match(skill, /explicitly place out of scope/)
+      assert.match(skill, /committed comparison is marked unresolved/)
+      assert.match(skill, /keep both paths/)
+      assert.match(skill, /mark those roots inferred/)
+      assert.match(skill, /未验证，不是实现缺失/)
+      assert.match(skill, /do not write `未见遗漏`/)
+      assert.match(command, /--base qft-app=origin\/main/)
+      assert.match(command, /--base qft-all=origin\/develop/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('does not print history YAML when openspec/changes/init exists', () => {
     const dir = tmp()
     try {
