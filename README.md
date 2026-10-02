@@ -4,7 +4,7 @@
 
 ## English
 
-`openspec-impact` provides the `osi` CLI for gathering deterministic evidence about a live [OpenSpec](https://github.com/Fission-AI/OpenSpec) change. It finds code files that match explicit citations in the change docs and adds limited Git history. It does not decide which files must change, and the CLI does not call an LLM.
+`openspec-impact` provides one CLI, installed as both `osi` and `openspec-impact`, for gathering deterministic evidence about a live [OpenSpec](https://github.com/Fission-AI/OpenSpec) change. It finds code files that match explicit citations in the change docs and adds limited Git history. It does not decide which files must change, and the CLI does not call an LLM.
 
 An optional agent skill (`/opsx-impact`) reads the evidence and writes a human-readable impact report. For a product-manager-oriented overview, see [the product guide](docs/product-overview.md).
 
@@ -59,9 +59,11 @@ npm install -g openspec-impact@latest
 osi init --agent cursor
 ```
 
-If the `osi` command is not found after installation, add npm's global executable directory to your `PATH`. On Unix-like systems, this is the `bin` directory under `npm prefix -g`; on Windows, it is the directory returned by `npm prefix -g`.
+If `osi` or `openspec-impact` is not found after installation, add npm's global executable directory to your `PATH`. On Unix-like systems, this is the `bin` directory under `npm prefix -g`; on Windows, it is the directory returned by `npm prefix -g`.
 
 ### Commands
+
+`osi` and `openspec-impact` run the same commands. Examples below use `osi`.
 
 ```text
 osi impact [--no-search] [--include-low] <change-id|path>
@@ -155,7 +157,7 @@ npm run fmt
 
 ## 中文
 
-`openspec-impact` 提供命令行工具 `osi`，为一份进行中的 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 变更收集确定性证据。它根据变更文档里的明确引用寻找代码文件，再补充有限的 Git 历史线索。它不会决定哪些文件必须修改，CLI 本身也不调用大模型。
+`openspec-impact` 提供一个命令行工具，安装后同时叫 `osi` 和 `openspec-impact`，为一份进行中的 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 变更收集确定性证据。它根据变更文档里的明确引用寻找代码文件，再补充有限的 Git 历史线索。它不会决定哪些文件必须修改，CLI 本身也不调用大模型。
 
 可选的 agent 技能 `/opsx-impact` 会读取这些证据并生成易读的影响面报告。面向产品经理的介绍见[产品说明](docs/product-overview.md)。
 
@@ -210,9 +212,11 @@ npm install -g openspec-impact@latest
 osi init --agent cursor
 ```
 
-如果安装后找不到 `osi` 命令，请将 npm 的全局可执行文件目录加入 `PATH`。在类 Unix 系统中，它是 `npm prefix -g` 返回目录下的 `bin`；在 Windows 中则是 `npm prefix -g` 返回的目录。
+如果安装后找不到 `osi` 或 `openspec-impact`，请将 npm 的全局可执行文件目录加入 `PATH`。在类 Unix 系统中，它是 `npm prefix -g` 返回目录下的 `bin`；在 Windows 中则是 `npm prefix -g` 返回的目录。
 
 ### 命令
+
+`osi` 和 `openspec-impact` 运行同一组命令。下面的例子使用 `osi`。
 
 ```text
 osi impact [--no-search] [--include-low] <change-id|path>

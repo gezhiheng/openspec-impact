@@ -230,6 +230,26 @@ describe('osi scope against fixture', () => {
     assert.match(r.stdout, /^concepts:$/m)
   })
 
+  it('runs the same scope when the bin is named openspec-impact', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'osi-bin-'))
+    const osi = join(dir, 'osi')
+    const full = join(dir, 'openspec-impact')
+    symlinkSync(cli, osi)
+    symlinkSync(cli, full)
+    const args = ['scope', 'add-renewal-status']
+    const a = spawnSync(process.execPath, [osi, ...args], { cwd: fixture, encoding: 'utf8' })
+    const b = spawnSync(process.execPath, [full, ...args], { cwd: fixture, encoding: 'utf8' })
+    assert.equal(a.status, 0, a.stderr)
+    assert.equal(b.status, a.status)
+    assert.equal(b.stdout, a.stdout)
+    for (const bin of [osi, full]) {
+      const r = spawnSync(process.execPath, [bin], { cwd: fixture, encoding: 'utf8' })
+      assert.notEqual(r.status, 0)
+      assert.match(r.stderr, /\bosi\b/)
+      assert.match(r.stderr, /openspec-impact/)
+    }
+  })
+
   it('osi scope --no-search prints typed concepts only', () => {
     const r = spawnSync(process.execPath, [cli, 'scope', '--no-search', 'add-renewal-status'], {
       cwd: fixture,

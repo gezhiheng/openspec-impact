@@ -1,8 +1,9 @@
 {
   "name": "openspec-impact",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Deterministic OpenSpec candidate-code-scope CLI",
   "bin": {
+    "openspec-impact": "dist/src/cli.js",
     "osi": "dist/src/cli.js"
   },
   "files": [

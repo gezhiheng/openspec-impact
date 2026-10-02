@@ -8,10 +8,10 @@ import { agentIds, parseAgentList, promptInit, runInit } from './commands/init.j
 import { runScope } from './commands/scope.js'
 import { toEvidenceYaml, toHistoryYaml, toYaml } from './output/yaml.js'
 
-export const USAGE = `Usage: osi impact [--no-search] [--include-low] <change-id|path>
-       osi scope [--no-search] [--include-low] <change-id|path>
-       osi history <change-id|path>
-       osi init [--agent <id[,id...]>]
+export const USAGE = `Usage: osi | openspec-impact impact [--no-search] [--include-low] <change-id|path>
+       osi | openspec-impact scope [--no-search] [--include-low] <change-id|path>
+       osi | openspec-impact history <change-id|path>
+       osi | openspec-impact init [--agent <id[,id...]>]
 
 impact prints seeds + refs + history YAML for a live OpenSpec change.
 scope, history, impact, and init are reserved commands.
