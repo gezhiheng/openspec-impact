@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { realpathSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { LocateError, UsageError } from './models/evidence.js'
 import { runEvidence } from './commands/evidence.js'
@@ -8,10 +9,13 @@ import { agentIds, parseAgentList, promptInit, runInit } from './commands/init.j
 import { runScope } from './commands/scope.js'
 import { toEvidenceYaml, toHistoryYaml, toYaml } from './output/yaml.js'
 
+const pkgVersion = createRequire(import.meta.url)('../../package.json').version as string
+
 export const USAGE = `Usage: osi | openspec-impact impact [--no-search] [--include-low] <change-id|path>
        osi | openspec-impact scope [--no-search] [--include-low] <change-id|path>
        osi | openspec-impact history <change-id|path>
        osi | openspec-impact init [--agent <id[,id...]>]
+       osi | openspec-impact -v | --version
 
 impact prints seeds + refs + history YAML for a live OpenSpec change.
 scope, history, impact, and init are reserved commands.
@@ -21,6 +25,7 @@ Agents: ${agentIds()}
 const LAYERS = new Set(['scope', 'history', 'impact'])
 
 export type ParsedArgs =
+  | { ok: true; command: 'version' }
   | {
       ok: true
       command: 'init'
@@ -38,6 +43,9 @@ export type ParsedArgs =
   | { ok: false; message: string }
 
 export function parseArgv(argv: string[]): ParsedArgs {
+  if (argv.length === 1 && (argv[0] === '-v' || argv[0] === '--version')) {
+    return { ok: true, command: 'version' }
+  }
   let includeLow = false
   let search = true
   let agents: string[] | undefined
@@ -105,6 +113,10 @@ export async function main(argv = process.argv.slice(2), cwd = process.cwd()): P
   if (!parsed.ok) {
     process.stderr.write(parsed.message.endsWith('\n') ? parsed.message : `${parsed.message}\n`)
     return 1
+  }
+  if (parsed.command === 'version') {
+    process.stdout.write(`${pkgVersion}\n`)
+    return 0
   }
   try {
     if (parsed.command === 'init') {

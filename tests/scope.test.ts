@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -50,7 +50,7 @@ describe('argv', () => {
     }
     const noSearch = parseArgv(['scope', '--no-search', 'add-renewal-status'])
     assert.equal(noSearch.ok, true)
-    if (noSearch.ok) {
+    if (noSearch.ok && noSearch.command === 'scope') {
       assert.equal(noSearch.search, false)
     }
     assert.equal(parseArgv(['--no-search', 'add-renewal-status']).ok, false)
@@ -228,6 +228,39 @@ describe('osi scope against fixture', () => {
     })
     assert.equal(r.status, 0, r.stderr)
     assert.match(r.stdout, /^concepts:$/m)
+  })
+
+  it('prints the package version for -v and --version', () => {
+    const { version } = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as {
+      version: string
+    }
+    const expected = `${version}\n`
+    const dir = mkdtempSync(join(tmpdir(), 'osi-ver-'))
+    const osi = join(dir, 'osi')
+    const full = join(dir, 'openspec-impact')
+    symlinkSync(cli, osi)
+    symlinkSync(cli, full)
+    for (const bin of [osi, full]) {
+      for (const flag of ['-v', '--version']) {
+        const r = spawnSync(process.execPath, [bin, flag], { cwd: fixture, encoding: 'utf8' })
+        assert.equal(r.status, 0, r.stderr)
+        assert.equal(r.stdout, expected)
+        assert.equal(r.stderr, '')
+      }
+    }
+    for (const args of [
+      ['-v', 'impact', 'add-renewal-status'],
+      ['impact', '--version', 'add-renewal-status'],
+    ]) {
+      const r = spawnSync(process.execPath, [cli, ...args], { cwd: fixture, encoding: 'utf8' })
+      assert.notEqual(r.status, 0)
+      assert.match(r.stderr, /Usage:/)
+      assert.equal(r.stdout, '')
+    }
+    const capital = spawnSync(process.execPath, [cli, '-V'], { cwd: fixture, encoding: 'utf8' })
+    assert.notEqual(capital.status, 0)
+    assert.match(capital.stderr, /Unknown flag: -V/)
+    assert.equal(capital.stdout, '')
   })
 
   it('runs the same scope when the bin is named openspec-impact', () => {

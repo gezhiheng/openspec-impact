@@ -70,6 +70,7 @@ osi impact [--no-search] [--include-low] <change-id|path>
 osi scope  [--no-search] [--include-low] <change-id|path>
 osi history <change-id|path>
 osi init [--agent <id[,id...]>]
+osi -v | --version
 ```
 
 `<change>` is a live change id, such as `add-renewal-status`, or a path such as `openspec/changes/add-renewal-status`. Archived changes are not resolved by id.
@@ -155,6 +156,8 @@ npm test
 npm run fmt
 ```
 
+A push to `main` that changes the `version` in `package.json` publishes that version to npm. Do not `npm publish` the same version from your machine. If the publish run fails, rerun that Actions run.
+
 ## 中文
 
 `openspec-impact` 提供一个命令行工具，安装后同时叫 `osi` 和 `openspec-impact`，为一份进行中的 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 变更收集确定性证据。它根据变更文档里的明确引用寻找代码文件，再补充有限的 Git 历史线索。它不会决定哪些文件必须修改，CLI 本身也不调用大模型。
@@ -223,6 +226,7 @@ osi impact [--no-search] [--include-low] <change-id|path>
 osi scope  [--no-search] [--include-low] <change-id|path>
 osi history <change-id|path>
 osi init [--agent <id[,id...]>]
+osi -v | --version
 ```
 
 `<change>` 可以是进行中的变更 id（如 `add-renewal-status`），也可以是路径（如 `openspec/changes/add-renewal-status`）。归档变更不能只靠 id 解析。
@@ -307,3 +311,5 @@ npm link
 npm test
 npm run fmt
 ```
+
+推送到 `main` 且 `package.json` 的 `version` 发生变化时，会把该版本发布到 npm。不要再在本机对同一版本执行 `npm publish`。发布失败时，重跑该次 Actions run。
