@@ -52,12 +52,13 @@ To get YAML evidence directly in a terminal, run:
 osi impact add-renewal-status
 ```
 
-After upgrading the global package, run `osi init` again, or pass `--agent`, to refresh the selected files:
+After the skill is installed, upgrade the global package and refresh those files from the project:
 
 ```bash
-npm install -g openspec-impact@latest
-osi init --agent cursor
+osi upgrade
 ```
+
+`osi upgrade` does not add a skill for an agent that has never been set up with `osi init`.
 
 If `osi` or `openspec-impact` is not found after installation, add npm's global executable directory to your `PATH`. On Unix-like systems, this is the `bin` directory under `npm prefix -g`; on Windows, it is the directory returned by `npm prefix -g`.
 
@@ -70,6 +71,7 @@ osi impact [--no-search] [--include-low] <change-id|path>
 osi scope  [--no-search] [--include-low] <change-id|path>
 osi history <change-id|path>
 osi init [--agent <id[,id...]>]
+osi upgrade
 osi -v | --version
 ```
 
@@ -81,6 +83,7 @@ osi -v | --version
 | `osi scope`   | `concepts`, ranked `candidates`, and related `tests`.                                                           |
 | `osi history` | `seeds` and `history`, with the same history rules as `impact`; no `refs` key.                                  |
 | `osi init`    | Installs the opsx-impact skill for the selected agents. Detected agents start selected; scripts pass `--agent`. |
+| `osi upgrade` | Updates the global package, then refreshes skills already installed in this project.                          |
 
 - `--no-search` keeps harvested concepts but skips the repository scan. In `scope`, `candidates` and `tests` are empty; in `impact`, `seeds`, `refs`, and `history` are empty.
 - `--include-low` adds up to 20 low-confidence candidates to `scope`. The flag is accepted by `impact`, but does not add low-confidence rows to its output; `impact` reports named high-confidence seeds.
@@ -208,12 +211,13 @@ Agent id：`cursor`、`claude`、`codex`、`windsurf`、`cline`、`roo`、`openc
 osi impact add-renewal-status
 ```
 
-升级全局安装的包后，再次运行 `osi init`，或带上 `--agent`，刷新所选文件：
+升级全局安装的包后，在已经装过 skill 的项目里刷新这些文件：
 
 ```bash
-npm install -g openspec-impact@latest
-osi init --agent cursor
+osi upgrade
 ```
+
+没跑过 `osi init` 的 agent，`osi upgrade` 不会给它新建 skill。
 
 如果安装后找不到 `osi` 或 `openspec-impact`，请将 npm 的全局可执行文件目录加入 `PATH`。在类 Unix 系统中，它是 `npm prefix -g` 返回目录下的 `bin`；在 Windows 中则是 `npm prefix -g` 返回的目录。
 
@@ -226,6 +230,7 @@ osi impact [--no-search] [--include-low] <change-id|path>
 osi scope  [--no-search] [--include-low] <change-id|path>
 osi history <change-id|path>
 osi init [--agent <id[,id...]>]
+osi upgrade
 osi -v | --version
 ```
 
@@ -237,6 +242,7 @@ osi -v | --version
 | `osi scope`   | `concepts`、排序后的 `candidates` 和相关 `tests`。                                |
 | `osi history` | `seeds` 和 `history`，使用与 `impact` 相同的历史规则，但不输出 `refs`。           |
 | `osi init`    | 为所选 agent 安装 opsx-impact 技能。检测到的 agent 默认选中；脚本使用 `--agent`。 |
+| `osi upgrade` | 更新全局包，并刷新当前项目里已经安装的 skill。                                  |
 
 - `--no-search` 保留从变更文档抽出的概念，但跳过仓库搜索。`scope` 的 `candidates` 和 `tests` 会为空；`impact` 的 `seeds`、`refs` 和 `history` 会为空。
 - `--include-low` 让 `scope` 额外输出最多 20 个低置信度候选。`impact` 虽接受此参数，但不会因此多输出低置信度项；它只报告具名高置信度种子。
