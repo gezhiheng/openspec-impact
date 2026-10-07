@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process'
 import { realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LocateError, UsageError } from './models/evidence.js'
 import { runEvidence } from './commands/evidence.js'
 import { runHistory } from './commands/history.js'
-import { agentIds, parseAgentList, promptInit, runInit } from './commands/init.js'
+import { agentIds, parseAgentList, promptInit, refreshInstalled, runInit } from './commands/init.js'
 import { runScope } from './commands/scope.js'
 import { toEvidenceYaml, toHistoryYaml, toYaml } from './output/yaml.js'
 
@@ -15,10 +17,11 @@ export const USAGE = `Usage: osi | openspec-impact impact [--no-search] [--inclu
        osi | openspec-impact scope [--no-search] [--include-low] <change-id|path>
        osi | openspec-impact history <change-id|path>
        osi | openspec-impact init [--agent <id[,id...]>]
+       osi | openspec-impact upgrade
        osi | openspec-impact -v | --version
 
 impact prints seeds + refs + history YAML for a live OpenSpec change.
-scope, history, impact, and init are reserved commands.
+scope, history, impact, init, and upgrade are reserved commands.
 Agents: ${agentIds()}
 `
 
@@ -26,6 +29,7 @@ const LAYERS = new Set(['scope', 'history', 'impact'])
 
 export type ParsedArgs =
   | { ok: true; command: 'version' }
+  | { ok: true; command: 'upgrade' }
   | {
       ok: true
       command: 'init'
@@ -86,6 +90,12 @@ export function parseArgv(argv: string[]): ParsedArgs {
   if (!first) {
     return { ok: false, message: USAGE }
   }
+  if (first === 'upgrade') {
+    if (positional.length !== 1 || includeLow || !search) {
+      return { ok: false, message: USAGE }
+    }
+    return { ok: true, command: 'upgrade' }
+  }
   if (first === 'init') {
     if (positional.length !== 1) {
       return { ok: false, message: USAGE }
@@ -119,6 +129,9 @@ export async function main(argv = process.argv.slice(2), cwd = process.cwd()): P
     return 0
   }
   try {
+    if (parsed.command === 'upgrade') {
+      return runUpgrade(cwd)
+    }
     if (parsed.command === 'init') {
       if (!parsed.agents && !process.stdin.isTTY) {
         process.stderr.write(
@@ -169,6 +182,45 @@ export async function main(argv = process.argv.slice(2), cwd = process.cwd()): P
     }
     throw err
   }
+}
+
+export function runUpgrade(
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+  install: () => number = installLatest,
+  relaunch: (cwd: string) => number = relaunchUpgrade,
+): number {
+  if (env.OSI_UPGRADE_REFRESH) {
+    const { wrote } = refreshInstalled(cwd)
+    for (const rel of wrote) {
+      process.stdout.write(`Wrote ${rel}\n`)
+    }
+    return 0
+  }
+  const code = install()
+  if (code !== 0) {
+    return code
+  }
+  return relaunch(cwd)
+}
+
+function installLatest(): number {
+  const child = spawnSync('npm', ['install', '-g', 'openspec-impact@latest'], { stdio: 'inherit' })
+  return child.status ?? 1
+}
+
+function relaunchUpgrade(cwd: string): number {
+  const root = spawnSync('npm', ['root', '-g'], { encoding: 'utf8' })
+  if ((root.status ?? 1) !== 0) {
+    return root.status ?? 1
+  }
+  const cli = join(root.stdout.trim(), 'openspec-impact', 'dist', 'src', 'cli.js')
+  const child = spawnSync(process.execPath, [cli, 'upgrade'], {
+    cwd,
+    env: { ...process.env, OSI_UPGRADE_REFRESH: '1' },
+    stdio: 'inherit',
+  })
+  return child.status ?? 1
 }
 
 function isDirectRun(): boolean {

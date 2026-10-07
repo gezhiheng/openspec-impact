@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { parseArgv } from '../src/cli.js'
+import { parseArgv, runUpgrade, USAGE } from '../src/cli.js'
 import { UsageError } from '../src/models/evidence.js'
 import {
   AGENTS,
@@ -18,6 +18,7 @@ import {
   parseAgentList,
   selectedIds,
   runInit,
+  refreshInstalled,
 } from '../src/commands/init.js'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -292,6 +293,106 @@ describe('osi init', () => {
       assert.equal(r.status, 0, r.stderr)
       notYaml(r.stdout)
       assert.equal(existsSync(join(dir, INIT_SKILL_REL)), true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('osi upgrade', () => {
+  it('accepts upgrade and lists it in usage', () => {
+    const parsed = parseArgv(['upgrade'])
+    assert.equal(parsed.ok, true)
+    if (parsed.ok) {
+      assert.equal(parsed.command, 'upgrade')
+    }
+    assert.equal(parseArgv(['upgrade', 'now']).ok, false)
+    assert.match(USAGE, /upgrade/)
+  })
+
+  it('writes nothing when init has not installed a skill', () => {
+    const dir = tmp()
+    try {
+      const code = runUpgrade(dir, { OSI_UPGRADE_REFRESH: '1' }, () => {
+        throw new Error('install')
+      })
+      assert.equal(code, 0)
+      assert.equal(existsSync(join(dir, INIT_SKILL_REL)), false)
+      assert.equal(existsSync(join(dir, '.claude/skills/opsx-impact/SKILL.md')), false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('refreshes installed agents and leaves the others', () => {
+    const dir = tmp()
+    try {
+      writeRel(dir, INIT_SKILL_REL, 'stale\n')
+      const code = runUpgrade(dir, { OSI_UPGRADE_REFRESH: '1' }, () => {
+        throw new Error('install')
+      })
+      assert.equal(code, 0)
+      assert.equal(
+        readFileSync(join(dir, INIT_SKILL_REL), 'utf8'),
+        readFileSync(skillTemplate, 'utf8'),
+      )
+      assert.equal(
+        readFileSync(join(dir, INIT_COMMAND_REL), 'utf8'),
+        readFileSync(cursorCommand, 'utf8'),
+      )
+      assert.equal(existsSync(join(dir, '.claude/skills/opsx-impact/SKILL.md')), false)
+
+      const project = tmp()
+      mkdirSync(join(project, 'openspec'), { recursive: true })
+      mkdirSync(join(project, 'src'), { recursive: true })
+      try {
+        writeRel(project, INIT_SKILL_REL, 'stale\n')
+        const nested = refreshInstalled(join(project, 'src'))
+        assert.equal(nested.root, project)
+        assert.equal(existsSync(join(project, 'src', INIT_SKILL_REL)), false)
+      } finally {
+        rmSync(project, { recursive: true, force: true })
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('replaces a previous osi-impact skill with the packaged templates', () => {
+    const dir = tmp()
+    try {
+      writeRel(dir, '.cursor/skills/osi-impact/SKILL.md', 'old\n')
+      refreshInstalled(dir)
+      assert.equal(existsSync(join(dir, '.cursor/skills/osi-impact/SKILL.md')), false)
+      assert.equal(existsSync(join(dir, '.cursor/skills/osi-impact')), false)
+      assert.equal(
+        readFileSync(join(dir, INIT_SKILL_REL), 'utf8'),
+        readFileSync(skillTemplate, 'utf8'),
+      )
+      assert.equal(
+        readFileSync(join(dir, INIT_COMMAND_REL), 'utf8'),
+        readFileSync(cursorCommand, 'utf8'),
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('leaves project files unchanged when install fails', () => {
+    const dir = tmp()
+    try {
+      writeRel(dir, INIT_SKILL_REL, 'stale\n')
+      const code = runUpgrade(
+        dir,
+        {},
+        () => 7,
+        () => {
+          throw new Error('relaunch')
+        },
+      )
+      assert.equal(code, 7)
+      assert.equal(readFileSync(join(dir, INIT_SKILL_REL), 'utf8'), 'stale\n')
+      assert.equal(existsSync(join(dir, INIT_COMMAND_REL)), false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

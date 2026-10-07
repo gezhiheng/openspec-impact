@@ -318,6 +318,33 @@ function removePrevious(root: string, rel: string): void {
   }
 }
 
+function isFile(abs: string): boolean {
+  return existsSync(abs) && statSync(abs).isFile()
+}
+
+export function installedAgentIds(root: string): string[] {
+  const ids: string[] = []
+  for (const agent of AGENTS) {
+    const legacyRel = agent.skill.replaceAll('opsx-impact', 'osi-impact')
+    if (
+      isFile(join(root, agent.skill))
+      || (legacyRel !== agent.skill && isFile(join(root, legacyRel)))
+    ) {
+      ids.push(agent.id)
+    }
+  }
+  return ids
+}
+
+export function refreshInstalled(cwd: string): { root: string; wrote: string[] } {
+  const root = findProjectRoot(cwd) ?? cwd
+  const agents = installedAgentIds(root)
+  if (agents.length === 0) {
+    return { root, wrote: [] }
+  }
+  return runInit({ cwd, agents })
+}
+
 export function runInit(opts: { cwd: string; agents: string[] }): {
   root: string
   wrote: string[]
