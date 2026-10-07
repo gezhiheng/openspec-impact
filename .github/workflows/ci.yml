@@ -20,7 +20,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm ci
-      - run: npm run fmt:check
+      - if: matrix.node == 22
+        run: npm run fmt:check
       - run: npm test
 
   publish:
