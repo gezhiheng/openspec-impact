@@ -1,7 +1,11 @@
 {
   "name": "openspec-impact",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Deterministic OpenSpec candidate-code-scope CLI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gezhiheng/openspec-impact.git"
+  },
   "bin": {
     "openspec-impact": "dist/src/cli.js",
     "osi": "dist/src/cli.js"
