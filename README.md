@@ -75,11 +75,11 @@ osi -v | --version
 
 `<change>` is a live change id, such as `add-renewal-status`, or a path such as `openspec/changes/add-renewal-status`. Archived changes are not resolved by id.
 
-| Command       | Output                                                                                                         |
-| ------------- | -------------------------------------------------------------------------------------------------------------- |
-| `osi impact`  | Main evidence pipeline: named seeds, citation references, and history.                                         |
-| `osi scope`   | `concepts`, ranked `candidates`, and related `tests`.                                                          |
-| `osi history` | `seeds` and `history`, with the same history rules as `impact`; no `refs` key.                                 |
+| Command       | Output                                                                                                          |
+| ------------- | --------------------------------------------------------------------------------------------------------------- |
+| `osi impact`  | Main evidence pipeline: named seeds, citation references, and history.                                          |
+| `osi scope`   | `concepts`, ranked `candidates`, and related `tests`.                                                           |
+| `osi history` | `seeds` and `history`, with the same history rules as `impact`; no `refs` key.                                  |
 | `osi init`    | Installs the opsx-impact skill for the selected agents. Detected agents start selected; scripts pass `--agent`. |
 
 - `--no-search` keeps harvested concepts but skips the repository scan. In `scope`, `candidates` and `tests` are empty; in `impact`, `seeds`, `refs`, and `history` are empty.
@@ -231,11 +231,11 @@ osi -v | --version
 
 `<change>` 可以是进行中的变更 id（如 `add-renewal-status`），也可以是路径（如 `openspec/changes/add-renewal-status`）。归档变更不能只靠 id 解析。
 
-| 命令          | 输出                                                                             |
-| ------------- | -------------------------------------------------------------------------------- |
-| `osi impact`  | 默认证据管线：具名种子、引用情况和历史线索。                                     |
-| `osi scope`   | `concepts`、排序后的 `candidates` 和相关 `tests`。                               |
-| `osi history` | `seeds` 和 `history`，使用与 `impact` 相同的历史规则，但不输出 `refs`。          |
+| 命令          | 输出                                                                              |
+| ------------- | --------------------------------------------------------------------------------- |
+| `osi impact`  | 默认证据管线：具名种子、引用情况和历史线索。                                      |
+| `osi scope`   | `concepts`、排序后的 `candidates` 和相关 `tests`。                                |
+| `osi history` | `seeds` 和 `history`，使用与 `impact` 相同的历史规则，但不输出 `refs`。           |
 | `osi init`    | 为所选 agent 安装 opsx-impact 技能。检测到的 agent 默认选中；脚本使用 `--agent`。 |
 
 - `--no-search` 保留从变更文档抽出的概念，但跳过仓库搜索。`scope` 的 `candidates` 和 `tests` 会为空；`impact` 的 `seeds`、`refs` 和 `history` 会为空。

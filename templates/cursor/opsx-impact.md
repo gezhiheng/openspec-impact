@@ -1,6 +1,6 @@
 ---
-name: "/opsx-impact"
-id: "opsx-impact"
+name: '/opsx-impact'
+id: 'opsx-impact'
 ---
 
 Follow the `opsx-impact` skill. Usage: `/opsx-impact {change} [--base <name>=<ref> ...]`
