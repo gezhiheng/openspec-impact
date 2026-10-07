@@ -30,6 +30,10 @@ Argv is hand-parsed in `src/cli.ts`. YAML is hand-written in `src/output/yaml.ts
 
 `tests/fixtures/mini-repo` plus tmp git copies of it. Point harvest, search, and co-change at the fixture, never this package’s tree or history. CLI tests spawn `dist/src/cli.js` (tests run after `tsc`). `node:test` + `node:assert/strict`.
 
+## Finish
+
+After a change that edits files, run `npm run fmt` and leave its rewrites in the change. Done when the command exits 0.
+
 ## Stack
 
 Node stdlib, `git`, `rg` (fallback `git grep`). Imports use `.js` specifiers (`module: Node16`). The skill body source of truth is `templates/opsx-impact/SKILL.md`. `osi init` installs it for the selected agents; the Cursor copy keeps that file's frontmatter.
