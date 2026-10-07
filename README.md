@@ -83,7 +83,7 @@ osi -v | --version
 | `osi scope`   | `concepts`, ranked `candidates`, and related `tests`.                                                           |
 | `osi history` | `seeds` and `history`, with the same history rules as `impact`; no `refs` key.                                  |
 | `osi init`    | Installs the opsx-impact skill for the selected agents. Detected agents start selected; scripts pass `--agent`. |
-| `osi upgrade` | Updates the global package, then refreshes skills already installed in this project.                          |
+| `osi upgrade` | Updates the global package, then refreshes skills already installed in this project.                            |
 
 - `--no-search` keeps harvested concepts but skips the repository scan. In `scope`, `candidates` and `tests` are empty; in `impact`, `seeds`, `refs`, and `history` are empty.
 - `--include-low` adds up to 20 low-confidence candidates to `scope`. The flag is accepted by `impact`, but does not add low-confidence rows to its output; `impact` reports named high-confidence seeds.
@@ -242,7 +242,7 @@ osi -v | --version
 | `osi scope`   | `concepts`、排序后的 `candidates` 和相关 `tests`。                                |
 | `osi history` | `seeds` 和 `history`，使用与 `impact` 相同的历史规则，但不输出 `refs`。           |
 | `osi init`    | 为所选 agent 安装 opsx-impact 技能。检测到的 agent 默认选中；脚本使用 `--agent`。 |
-| `osi upgrade` | 更新全局包，并刷新当前项目里已经安装的 skill。                                  |
+| `osi upgrade` | 更新全局包，并刷新当前项目里已经安装的 skill。                                    |
 
 - `--no-search` 保留从变更文档抽出的概念，但跳过仓库搜索。`scope` 的 `candidates` 和 `tests` 会为空；`impact` 的 `seeds`、`refs` 和 `history` 会为空。
 - `--include-low` 让 `scope` 额外输出最多 20 个低置信度候选。`impact` 虽接受此参数，但不会因此多输出低置信度项；它只报告具名高置信度种子。
